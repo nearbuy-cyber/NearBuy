@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="#f7f8f5"/><meta name="description" content="NearBuy Seller Hub — run your local shop, products, orders and earnings."/><title>Seller Hub — NearBuy</title><link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"/><link rel="stylesheet" href="/seller.css"/>
+</head>
+<body class="seller-body">
+<div id="sellerLogin" class="seller-login"></div>
+<div id="sellerApp" class="seller-app" hidden>
+  <aside class="seller-sidebar" id="sellerSidebar">
+    <a class="seller-brand" href="/" aria-label="NearBuy home"><span class="seller-logo-crop"><img src="/public/assets/nearbuy-logo.png" alt="NearBuy"/></span><span class="hub-tag">SELLER HUB</span></a>
+    <div class="side-shop"><span class="shop-avatar">GB</span><div><b>Green Basket Market</b><small>Hauz Khas · South Delhi</small></div><span class="side-chevron">⌄</span></div>
+    <div class="nav-group-label">WORKSPACE</div>
+    <nav class="seller-nav" id="sellerNav">
+      <button data-view="dashboard" class="active"><span>▦</span>Overview</button>
+      <button data-view="orders"><span>▤</span>Orders<i class="nav-pill" id="newOrderCount">3</i></button>
+      <button data-view="products"><span>▧</span>Products & catalogue</button>
+      <button data-view="inventory"><span>▥</span>Inventory & stock</button>
+      <button data-view="delivery"><span>↗</span>Delivery & pickup</button>
+      <button data-view="returns"><span>↩</span>Returns & issues</button>
+    </nav>
+    <div class="nav-group-label">GROW YOUR SHOP</div>
+    <nav class="seller-nav">
+      <button data-view="payments"><span>₹</span>Payments & earnings</button>
+      <button data-view="promotions"><span>✳</span>Promotions</button>
+      <button data-view="analytics"><span>⌁</span>Business insights</button>
+    </nav>
+    <div class="nav-group-label">YOUR BUSINESS</div>
+    <nav class="seller-nav">
+      <button data-view="shop"><span>⌂</span>My shop</button>
+      <button data-view="support"><span>♡</span>Support & Academy</button>
+      <button data-view="team"><span>♙</span>Team & access</button>
+      <button data-view="security"><span>▣</span>Account & security</button>
+    </nav>
+    <div class="sidebar-bottom"><div class="help-card"><span>✳</span><b>A little help goes a long way.</b><small>Quick lessons for your shop</small><button data-view="support">Visit NearBuy Academy ↗</button></div><button class="sidebar-home" data-action="partner-demo">↗ Open NearBuy Runner demo</button><button class="sidebar-home" onclick="location.href='/'">← Back to customer site</button></div>
+  </aside>
+  <div class="seller-main-wrap">
+    <header class="seller-topbar"><button class="sidebar-toggle" id="sidebarToggle" aria-label="Open navigation">☰</button><div class="seller-breadcrumb"><span>NearBuy Seller Hub</span><b>/</b><strong id="currentPageName">Overview</strong></div><div class="seller-top-actions"><div class="top-shop-status"><i></i><span>Shop is <b id="topShopStatus">Open</b></span></div><button class="seller-icon-button" data-view="notifications" aria-label="Notifications">♧<i id="sellerNotificationCount">3</i></button><button class="seller-profile-button" id="profileMenu"><span class="profile-initials" id="sellerInitials">RS</span><span><b id="sellerName">Riya Sharma</b><small id="sellerRole">Shop owner</small></span><i>⌄</i></button></div></header>
+    <main id="sellerMain" class="seller-main" tabindex="-1"></main>
+  </div>
+</div>
+<div id="sellerModal"></div><div id="sellerToast" class="seller-toast" role="status" aria-live="polite"></div>
+<script src="/seller.js"></script>
+</body>
+</html>
