@@ -87,7 +87,9 @@ Every screen in every workspace is looking at the same record.
 
 ## The operations console is gated
 
-The ops workspace is not a fourth public portal. Any `#/ops/*` route renders a locked shell — no rail, no workspace switcher, no dispatch data — until the demo access code is entered; the unlock is stored in `sessionStorage` for that tab only, audited, and can be cleared again with the *Lock console* control. `/admin/` is a noindex signpost to the same gate, deliberately absent from the homepage, footer and portal cards.
+The ops workspace is not a fourth public portal. Any `#/ops/*` route renders a locked state — the operations module list, its counts and its data are all withheld, and the breadcrumb reads *Restricted access* — until the demo access code is entered. The unlock is stored in `sessionStorage` for that tab only, audited, and can be cleared again with the *Lock console* control.
+
+The gate is not a trap: the rail, the top-bar workspace switcher, the launcher (`All workspaces`) and the mobile drawer stay live throughout, so Shop ⇄ Sell ⇄ Deliver ⇄ Fleet ⇄ Ops switching never breaks — only ops content waits for the code. `/admin/` is a noindex signpost to the same gate, deliberately absent from the homepage, footer and portal cards.
 
 ## Keyboard & shortcuts
 

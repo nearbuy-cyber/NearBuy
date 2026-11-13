@@ -510,6 +510,7 @@ function currentNav() {
 }
 const EXTRA_TITLES = { shop: 'Shop details', product: 'Product', order: 'Order', checkout: 'Checkout', register: 'Register' };
 function viewTitle() {
+  if (route.surface === 'ops' && !adminSession()) return 'Restricted access';
   const nav = currentNav();
   if (nav) return nav.label;
   return EXTRA_TITLES[route.view] || 'Overview';
@@ -541,7 +542,10 @@ function wsSwitch(active) {
 }
 function railHtml() {
   const s = route.surface, meta = SURFACES[s], persona = personaFor(s);
-  const nav = meta.nav.map((item) => {
+  const locked = s === 'ops' && !adminSession();
+  const nav = locked ? `<div class="rail__label">CONTROL TOWER</div>
+    <div class="rail__locked">${icon('lock')}<b>Console locked</b><small>Operations modules stay hidden until the demo access code is entered.</small></div>`
+    : meta.nav.map((item) => {
     if (item.group) return `<div class="rail__label">${item.group}</div>`;
     const count = item.count ? item.count() : 0;
     return `<button class="rail__link ${route.view === item.view ? 'active' : ''}" ${route.view === item.view ? 'aria-current="page"' : ''} data-act="nav" data-surface="${s}" data-view="${item.view}">
@@ -572,7 +576,7 @@ function railHtml() {
 function areaLabel() { return state.area || 'Hauz Khas'; }
 function topbarHtml() {
   const meta = currentMeta(), persona = personaFor(route.surface);
-  const bellCount = unreadFor(route.surface === 'shop' ? 'shop' : route.surface).length;
+  const bellCount = route.surface === 'ops' && !adminSession() ? 0 : unreadFor(route.surface === 'shop' ? 'shop' : route.surface).length;
   return `<header class="topbar">
     <button class="iconbtn topbar__menu" data-act="drawer" aria-label="Open navigation">${icon('menu')}</button>
     <div class="crumb">
@@ -2843,6 +2847,7 @@ function adminLockPage() {
       <span class="kicker"><i></i>PROTECTED INTERNAL CONSOLE</span>
       <h1>Operations is not a public portal</h1>
       <p class="small muted">The NearBuy control tower is an internal workspace for verification, dispatch, pricing and audit. It is deliberately gated and is not linked as a fourth customer portal.</p>
+      <p class="tiny muted">Operations modules stay hidden until you unlock, but every other workspace is still one click away in the switcher.</p>
       <form id="adminUnlockForm" class="admin-lock__form">
         <label class="field"><span>Demo access code</span>
           <input class="input" type="text" name="code" placeholder="Enter demo code" autocomplete="off" spellcheck="false" />
@@ -3500,16 +3505,6 @@ function refreshPage() {
   }
 }
 let lastRouteKey = null;
-function lockedBar() {
-  return `<header class="topbar topbar--locked">
-    <a class="rail__brand" href="/" aria-label="NearBuy home">
-      ${LOGO}<span class="word"><b>Near<em>Buy</em></b><small>OPERATIONS</small></span>
-    </a>
-    <div class="topbar__spacer"></div>
-    <span class="pill pill--outline">${icon('lock')} Internal · demo</span>
-  </header>`;
-}
-
 function paint() {
   readRoute();
   const key = `${route.surface}/${route.view}/${route.id || ''}`;
@@ -3519,10 +3514,8 @@ function paint() {
   document.body.dataset.surface = route.surface;
   const opsLocked = route.surface === 'ops' && !adminSession();
   document.body.classList.toggle('ops-locked', opsLocked);
-  $('#app').innerHTML = opsLocked
-    ? `<div class="main">${lockedBar()}<main class="content"><div id="page">${pageHtml()}</div></main></div>`
-    : `${railHtml()}<div class="scrim ${ui.drawer ? 'show' : ''}" id="scrim" data-act="drawer"></div>
-    <div class="main">${topbarHtml()}<main class="content"><div id="page">${pageHtml()}</div></main></div>${mobilebarHtml()}`;
+  $('#app').innerHTML = `${railHtml()}<div class="scrim ${ui.drawer ? 'show' : ''}" id="scrim" data-act="drawer"></div>
+    <div class="main">${topbarHtml()}<main class="content"><div id="page">${pageHtml()}</div></main></div>${opsLocked ? '' : mobilebarHtml()}`;
   renderOverlay();
   syncDrawer();
   document.title = `${viewTitle()} · ${currentMeta().label} — NearBuy One`;

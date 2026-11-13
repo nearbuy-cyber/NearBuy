@@ -1067,17 +1067,7 @@ p, .prod__name, .list-row__main small, .shop-card__p { text-wrap: pretty; }
 .admin-lock__form { display: grid; gap: 10px; margin: 0 auto 14px; max-width: 330px; text-align: left; }
 .admin-lock__links { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
 .admin-lock .notice { text-align: left; }
-body.ops-locked .rail,
-body.ops-locked .scrim,
-body.ops-locked .mobilebar,
-body.ops-locked .topbar__nav,
-body.ops-locked .topbar__search,
-body.ops-locked .drawer-toggle { display: none !important; }
-body.ops-locked .main { margin-left: 0; }
-body.ops-locked .content { padding-top: 40px; }
-body.ops-locked .topbar { justify-content: space-between; }
-.topbar--locked { padding: 14px 22px; background: transparent; border-bottom: 1px solid var(--line-soft); }
-.topbar--locked .rail__brand b { color: var(--ink); }
-.topbar--locked .rail__brand b em { color: var(--accent); }
-.topbar--locked .rail__brand small { color: var(--muted-2); }
-.topbar--locked .pill .ic { width: 12px; height: 12px; }
+.rail__locked { display: grid; gap: 6px; padding: 12px; margin: 2px 0 8px; border-radius: 12px; border: 1px dashed rgba(255,255,255,.18); background: rgba(255,255,255,.04); color: #9db1d2; }
+.rail__locked .ic { width: 15px; height: 15px; color: #7fd8ea; }
+.rail__locked b { color: #e9f0fc; font-size: 12px; font-weight: 600; }
+.rail__locked small { font-size: 10.5px; line-height: 1.5; }
