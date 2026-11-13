@@ -20,11 +20,25 @@ Then open **http://localhost:4173** — no build step, no dependencies, no backe
 | `/customer/` · `/customer/login/` | Enters the customer portal (redirects into NearBuy One, Shop workspace) |
 | `/seller/` · `/seller/register/` | Enters the seller portal (Sell workspace) |
 | `/runner/` · `/runner/register/` | Enters the delivery-partner portal (Deliver workspace) |
+| `/admin/` | Gated entrance to the internal operations console (noindex, never linked in public navigation) |
 | `/about/` | About NearBuy, the neighbourhood model and the prototype disclaimer |
 | `/help/` | Help centre with quick links, 8 FAQs and support routes |
 | `/portal.html` | NearBuy One itself — the internal product shell and operations console |
 
 Three portals, three separate front doors, independent sign-in / registration / verification journeys, one backend. The homepage is the only public entry point; the operations console stays internal.
+
+### Registration and verification (simulated)
+
+| Journey | Route | What actually works |
+| --- | --- | --- |
+| Seller onboarding | `/seller/register/` → `#/sell/register` | 7 steps (account, business, details, location, operations, payout, review) with per-step validation, mobile OTP, GSTIN/IFSC format checks, sample document attachment and a submission that lands in the ops queue |
+| Partner onboarding | `/runner/register/` → `#/deliver/register` | 7 steps with a hard **18+ age gate** computed from the date of birth, document masking (last 4 characters only), emergency contact, safety briefing and the three operational limits below |
+| Verification queue | `#/ops/verifications` (after unlocking ops) | Every submitted application with its automated checks and reviewer actions: approve, request correction, reject — each written to the audit log |
+| Application status | `#/sell/register` · `#/deliver/register` after submission | Status stays visible with the checks that ran, so a rejected applicant always sees why |
+
+Two demo secrets make this walkable: OTP **`123456`** (displayed in the UI because no SMS is sent) and operations access code **`NB-OPS-2026`** (browser-session only). The delivery programme is adults-only at launch: an under-18 date of birth is refused with an explanation and cannot be overridden in the UI.
+
+What is *not* real: no SMS, no document upload, no identity provider, no bank verification, no reviewer. Automated checks are assistive only and never make the final decision — production needs authorised KYC providers, encrypted storage, reason codes, MFA for reviewers and an appeal route.
 
 ### Homepage build notes
 
@@ -59,7 +73,7 @@ NearBuy One rebuilds them as **one product**:
 | **Sell** | Green Basket Market | Accept orders, mark ready, request runners, edit catalogue & stock, promotions, payouts, insights, settings, team |
 | **Deliver** | Runner | Go online, accept/pass requests, shop arrival, pickup OTP, route, delivery OTP, earnings, preferences, safety reports |
 | **Fleet** | Neighbourhood fleet lead | Team availability, work allocation, auto-match, reports, safety commitments |
-| **Ops** | South Delhi ops desk | Control tower, dispatch queue, partner eligibility, service areas, pricing bands, incidents, audit log |
+| **Ops** | South Delhi ops desk | Control tower, dispatch queue, **verification queue**, partner eligibility, service areas, pricing bands, incidents, audit log |
 
 ## Follow one order around the loop
 
@@ -70,6 +84,10 @@ NearBuy One rebuilds them as **one product**:
 5. **Ops** — the task, its status changes and the sample earning are in the audit log; stock has gone down; the shop's payouts and the runner's earnings have updated.
 
 Every screen in every workspace is looking at the same record.
+
+## The operations console is gated
+
+The ops workspace is not a fourth public portal. Any `#/ops/*` route renders a locked shell — no rail, no workspace switcher, no dispatch data — until the demo access code is entered; the unlock is stored in `sessionStorage` for that tab only, audited, and can be cleared again with the *Lock console* control. `/admin/` is a noindex signpost to the same gate, deliberately absent from the homepage, footer and portal cards.
 
 ## Keyboard & shortcuts
 
@@ -107,6 +125,9 @@ home.css · home.js    homepage design system, tilt/parallax/reveal, tabs, choos
 about/ · help/        static public pages built on the same system
 customer/ seller/ runner/
                       portal front doors; each redirects into its workspace
+seller/register/ · runner/register/
+                      registration front doors (7-step onboarding wizards)
+admin/                noindex signpost to the gated operations console
 portal.html           NearBuy One — the unified product shell
 nearbuy.css           product design system + every workspace style
 nearbuy.js            data, store, router, five workspaces, flows, modals
@@ -119,4 +140,4 @@ public/assets/        brand mark + compressed 3D renders used by the homepage
 
 Deep navy `#081428`, marigold `#f47718`, cream `#fbf7f0` and white. Display type is Manrope, body type DM Sans, with system fallbacks. Cards are 16–26 px radius; motion is 200–700 ms on a single easing curve.
 
-> **Prototype notice.** This is a simulated demo. Checkout charges nothing, no shop is contacted, no runner is dispatched, no OTP is sent, no payout or bank account exists, and no personal or sensitive information should be entered. Maps, distances and pricing are schematic. The proposed adult-only delivery policy and any real worker or business arrangement require qualified Indian legal review; this demo does not determine legal eligibility.
+> **Prototype notice.** This is a simulated demo. Checkout charges nothing, no shop is contacted, no runner is dispatched, no OTP is sent, no application is really verified, no payout or bank account exists, and no personal or sensitive information should be entered. Maps, distances and pricing are schematic. The proposed adult-only delivery policy and any real worker or business arrangement require qualified Indian legal review; this demo does not determine legal eligibility.

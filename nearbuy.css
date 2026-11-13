@@ -1032,3 +1032,52 @@ p, .prod__name, .list-row__main small, .shop-card__p { text-wrap: pretty; }
 @media (min-width: 981px) {
   .content { padding-top: 32px; }
 }
+
+/* ---------- onboarding wizards + gated operations console ---------- */
+.ob-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 12px; margin-top: 4px; border-top: 1px solid var(--line-soft); }
+.ob-actions .btn[disabled] { opacity: .45; pointer-events: none; }
+.ob-check { display: flex; gap: 9px; align-items: flex-start; font-size: 12.4px; color: var(--ink-2); cursor: pointer; padding: 10px 12px; border: 1px solid var(--line-soft); border-radius: 10px; background: #fdfbf7; }
+.ob-check:hover { border-color: #d6cdbc; }
+.ob-check input { margin-top: 2px; accent-color: var(--accent); flex: 0 0 auto; }
+.ob-check small { display: block; margin-top: 2px; line-height: 1.45; }
+.upload-box { display: grid; justify-items: center; gap: 4px; text-align: center; padding: 16px; border: 1px dashed #d9cdb8; border-radius: 12px; background: #fdfbf7; }
+.upload-box__icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: #fff; border: 1px solid var(--line-soft); color: var(--accent); }
+.upload-box__icon .ic { width: 16px; height: 16px; }
+.summary-list > div { display: flex; justify-content: space-between; gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--line-soft); font-size: 12.4px; color: var(--muted); }
+.summary-list > div b { color: var(--ink); font-weight: 600; text-align: right; }
+.summary-list > div:last-child { border-bottom: 0; }
+.checklist { display: grid; gap: 7px; }
+.checklist li { display: flex; gap: 9px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line-soft); border-radius: 10px; background: #fdfbf7; font-size: 12.2px; color: var(--muted); }
+.checklist li .ic { width: 15px; height: 15px; flex: 0 0 auto; margin-top: 1px; }
+.checklist li.pass .ic { color: var(--green); }
+.checklist li.review .ic { color: var(--amber); }
+.checklist li.fail .ic { color: var(--red); }
+.checklist li b { font-weight: 600; color: var(--ink); }
+.otp-inline { font-family: var(--display); font-size: 10px; font-weight: 800; letter-spacing: .14em; background: var(--sand); border: 1px dashed #d9cdb8; border-radius: 6px; padding: 1px 5px; margin-left: 4px; color: var(--ink); }
+.ticks { display: grid; gap: 7px; font-size: 12.3px; }
+.ticks li { display: flex; gap: 8px; align-items: flex-start; color: var(--ink-2); }
+.ticks .ic { width: 14px; height: 14px; color: var(--green); margin-top: 2px; flex: 0 0 auto; }
+.radio-card:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent) inset; }
+.admin-lock { max-width: 560px; margin: 5vh auto; padding: 30px 28px; text-align: center; }
+.admin-lock__icon { display: grid; place-items: center; width: 52px; height: 52px; margin: 0 auto 14px; border-radius: 16px; background: var(--accent-soft); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); }
+.admin-lock__icon .ic { width: 24px; height: 24px; }
+.admin-lock .kicker { display: inline-flex; justify-content: center; }
+.admin-lock h1 { font-size: 22px; margin: 6px 0 10px; }
+.admin-lock p { margin: 0 auto 18px; max-width: 46ch; }
+.admin-lock__form { display: grid; gap: 10px; margin: 0 auto 14px; max-width: 330px; text-align: left; }
+.admin-lock__links { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+.admin-lock .notice { text-align: left; }
+body.ops-locked .rail,
+body.ops-locked .scrim,
+body.ops-locked .mobilebar,
+body.ops-locked .topbar__nav,
+body.ops-locked .topbar__search,
+body.ops-locked .drawer-toggle { display: none !important; }
+body.ops-locked .main { margin-left: 0; }
+body.ops-locked .content { padding-top: 40px; }
+body.ops-locked .topbar { justify-content: space-between; }
+.topbar--locked { padding: 14px 22px; background: transparent; border-bottom: 1px solid var(--line-soft); }
+.topbar--locked .rail__brand b { color: var(--ink); }
+.topbar--locked .rail__brand b em { color: var(--accent); }
+.topbar--locked .rail__brand small { color: var(--muted-2); }
+.topbar--locked .pill .ic { width: 12px; height: 12px; }

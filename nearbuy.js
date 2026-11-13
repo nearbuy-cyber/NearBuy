@@ -251,7 +251,8 @@ const DEFAULT_STATE = () => ({
     { id: 'n3', audience: 'deliver', title: 'Delivery request nearby', body: 'Green Basket Market · 0.4 km · ₹12', at: '2 min ago', unread: true },
     { id: 'n4', audience: 'ops', title: 'Unmatched delivery request', body: 'DR-1032 has no partner for 6 minutes.', at: '10:46 am', unread: true }
   ],
-  orderSeq: 20487
+  orderSeq: 20487,
+  onboarding: { seller: sellerBlank(), runner: runnerBlank() }
 });
 
 function loadState() {
@@ -260,7 +261,11 @@ function loadState() {
     if (!raw) return DEFAULT_STATE();
     const parsed = JSON.parse(raw);
     const base = DEFAULT_STATE();
-    return { ...base, ...parsed, settings: { ...base.settings, ...(parsed.settings || {}) } };
+    const onboarding = parsed.onboarding && parsed.onboarding.seller
+      ? { seller: { ...base.onboarding.seller, ...parsed.onboarding.seller, checks: parsed.onboarding.seller.checks || [] },
+          runner: { ...base.onboarding.runner, ...(parsed.onboarding.runner || {}), checks: (parsed.onboarding.runner || {}).checks || [] } }
+      : base.onboarding;
+    return { ...base, ...parsed, onboarding, settings: { ...base.settings, ...(parsed.settings || {}) } };
   } catch { return DEFAULT_STATE(); }
 }
 const state = loadState();
@@ -452,6 +457,7 @@ const SURFACES = {
     nav: [
       { group: 'CONTROL TOWER' },
       { view: 'overview', label: 'Live overview', icon: 'home' },
+      { view: 'verifications', label: 'Verifications', icon: 'shield', count: () => opsApplications().filter((a) => !['Approved', 'Rejected'].includes(a.app.status)).length },
       { view: 'dispatch', label: 'Dispatch', icon: 'pin', count: () => state.tasks.filter((t) => t.status === 'Requested').length },
       { view: 'partners', label: 'Partners', icon: 'users' },
       { group: 'NETWORK SETUP' },
@@ -465,7 +471,7 @@ const SURFACES = {
 };
 
 const route = { surface: 'shop', view: 'home', id: null };
-const ui = { drawer: false, modal: null, palette: null, query: '', filters: {} };
+const ui = { drawer: false, modal: null, palette: null, query: '', filters: {}, onboardError: '' };
 
 function readRoute() {
   const raw = location.hash.replace(/^#\/?/, '');
@@ -483,7 +489,7 @@ function readRoute() {
     route.surface = 'shop'; route.view = 'home'; route.id = null;
   }
   const realViews = SURFACES[route.surface].nav.filter((n) => n.view).map((n) => n.view);
-  const detailViews = ['shop', 'product', 'order', 'checkout'];
+  const detailViews = ['shop', 'product', 'order', 'checkout', 'register'];
   if (!realViews.includes(route.view) && !detailViews.includes(route.view)) {
     route.view = realViews[0] || 'home';
   }
@@ -502,7 +508,7 @@ function currentMeta() { return SURFACES[route.surface]; }
 function currentNav() {
   return currentMeta().nav.find((n) => n.view === route.view) || null;
 }
-const EXTRA_TITLES = { shop: 'Shop details', product: 'Product', order: 'Order', checkout: 'Checkout' };
+const EXTRA_TITLES = { shop: 'Shop details', product: 'Product', order: 'Order', checkout: 'Checkout', register: 'Register' };
 function viewTitle() {
   const nav = currentNav();
   if (nav) return nav.label;
@@ -580,6 +586,7 @@ function topbarHtml() {
       ${route.surface === 'shop' ? `
         <button class="pillbtn hide-sm" data-act="area">${icon('pin')}<span>${esc(areaLabel())}</span>${icon('chevronDown', 'sm')}</button>
         <button class="iconbtn" data-act="nav" data-surface="shop" data-view="cart" aria-label="Cart">${icon('bag')}${cartCount() ? `<i class="dot">${cartCount()}</i>` : ''}</button>` : ''}
+      ${route.surface === 'ops' ? `<button class="iconbtn" data-act="admin-lock" aria-label="Lock the operations console" title="Lock console">${icon('lock')}</button>` : ''}
       <button class="iconbtn" data-act="inbox" aria-label="Notifications">${icon('bell')}${bellCount ? `<i class="dot">${bellCount}</i>` : ''}</button>
       <button class="avatar-btn" data-act="account">
         <span class="ava ava--${persona.avatar}">${persona.initials}</span>
@@ -1601,6 +1608,7 @@ function sellPage() {
     case 'settings': return sellSettings();
     case 'team': return sellTeam();
     case 'support': return sellSupport();
+    case 'register': return sellerOnboarding();
     default: return sellOverview();
   }
 }
@@ -1855,6 +1863,7 @@ function deliverPage() {
     case 'profile': return deliverProfile();
     case 'safety': return deliverSafety();
     case 'support': return deliverSupport();
+    case 'register': return runnerOnboarding();
     default: return deliverOverview();
   }
 }
@@ -2155,6 +2164,7 @@ function opsAudit() {
 }
 function opsPage() {
   switch (route.view) {
+    case 'verifications': return opsVerifications();
     case 'dispatch': return opsDispatch();
     case 'partners': return opsPartners();
     case 'areas': return opsAreas();
@@ -2497,6 +2507,47 @@ function handleAction(act, ds, el, event) {
     case 'reset': openResetModal(); break;
     case 'reset-yes': try { localStorage.removeItem(KEY); } catch {} location.reload(); break;
     case 'toast': toast(ds.msg || 'Done.', 'checkCircle'); break;
+    case 'send-otp': {
+      const app = applicationFor(ds.kind);
+      const form = el && el.closest('form');
+      captureStep(ds.kind, form);
+      if (!/^[6-9]\d{9}$/.test(app.phone)) {
+        ui.onboardError = 'Enter a valid 10-digit Indian mobile number before requesting the demo OTP.';
+        save(); refreshPage();
+        toast('Add a valid mobile number first.', 'alert');
+        break;
+      }
+      ui.onboardError = '';
+      app.otpSent = true;
+      app.otpVerified = false;
+      save(); refreshPage();
+      toast(`Demo OTP ${DEMO_OTP}. No SMS was sent.`, 'phone');
+      break;
+    }
+    case 'ob-back': {
+      const app = applicationFor(ds.kind);
+      app.step = Math.max(0, app.step - 1);
+      ui.onboardError = '';
+      save(); paint();
+      break;
+    }
+    case 'ob-photo': {
+      captureStep('seller', el && el.closest('form'));
+      applicationFor('seller').photo = true;
+      save(); refreshPage();
+      toast('Sample shopfront attached. Nothing was uploaded.', 'package');
+      break;
+    }
+    case 'ob-selfie': {
+      captureStep('runner', el && el.closest('form'));
+      applicationFor('runner').selfie = true;
+      save(); refreshPage();
+      toast('Sample photograph attached. Liveness was not checked.', 'user');
+      break;
+    }
+    case 'ob-decide': decideApplication(ds.kind, ds.decision); break;
+    case 'ob-restart': restartApplication(ds.kind); break;
+    case 'admin-lock': clearAdminSession(); paint(); toast('Operations session cleared for this tab.', 'lock'); break;
     case 'save': {
       const on = state.saved.includes(ds.id);
       state.saved = on ? state.saved.filter((x) => x !== ds.id) : [...state.saved, ds.id];
@@ -2700,7 +2751,730 @@ function handleAction(act, ds, el, event) {
 }
 
 /* --------------------------------- render --------------------------------- */
+/* ===========================================================================
+   Onboarding, verification and the protected operations entrance.
+
+   Everything here is a browser-only simulation. No SMS is sent, no document
+   is uploaded, no identity provider is called and no reviewer is involved.
+   ========================================================================= */
+
+const DEMO_OTP = '123456';
+const ADMIN_CODE = 'NB-OPS-2026';
+const ADMIN_SESSION_KEY = 'nearbuy.ops.session';
+
+const SELLER_STEPS = ['Account', 'Business', 'Details', 'Location', 'Operations', 'Payout', 'Review'];
+const RUNNER_STEPS = ['Mobile', 'About you', 'Documents', 'Vehicle & area', 'Payout', 'Safety', 'Review'];
+
+const SELLER_TYPES = [
+  ['Grocery and daily essentials', 'Fruit, vegetables, dairy and household staples'],
+  ['General store', 'Everyday household and personal-use products'],
+  ['Stationery and books', 'School, office and reading supplies'],
+  ['Bookshop', 'Books, guides and reference titles'],
+  ['Convenience store', 'Long hours, quick top-up shopping'],
+  ['Other eligible retail', 'Subject to category review']
+];
+
+const VEHICLES = [
+  ['Walking', 'Best for 0–500 m runs'],
+  ['Bicycle', 'Nearby residential deliveries'],
+  ['E-bike', 'Longer local distances'],
+  ['Electric scooter', 'Eligible with a valid licence'],
+  ['Business fleet', 'Company-owned vehicle and team'],
+  ['Shop staff', 'Authorised by a participating shop']
+];
+
+function sellerBlank() {
+  return {
+    status: 'Incomplete', step: 0,
+    phone: '', email: '', language: 'English', otpSent: false, otpVerified: false,
+    businessType: '', legalName: '', displayName: '', owner: '', gstin: '',
+    address: '', pin: '', area: 'Hauz Khas', photo: false,
+    hoursOpen: '8:00 am', hoursClose: '10:00 pm', holiday: 'Sunday',
+    prep: '15–25 min', radius: 2, pickup: true, delivery: true,
+    bankHolder: '', bankAcc: '', ifsc: '',
+    checks: [], submittedAt: null, decidedAt: null, decisionNote: ''
+  };
+}
+
+function runnerBlank() {
+  return {
+    status: 'Incomplete', step: 0,
+    phone: '', email: '', otpSent: false, otpVerified: false,
+    name: '', dob: '', age: null, address: '', pin: '',
+    idType: 'Aadhaar', idLast4: '', selfie: false,
+    vehicle: 'Bicycle', area: 'Hauz Khas', maxKm: 2,
+    payoutMethod: 'UPI', upi: '', bankAcc: '', ifsc: '',
+    emergencyName: '', emergencyPhone: '',
+    training: false, agreement: false,
+    checks: [], submittedAt: null, decidedAt: null, decisionNote: ''
+  };
+}
+
+function sellerApplication() { return state.onboarding.seller; }
+function runnerApplication() { return state.onboarding.runner; }
+function applicationFor(kind) { return kind === 'seller' ? sellerApplication() : runnerApplication(); }
+
+/* Keeps whatever the applicant has typed when a secondary action re-renders. */
+function captureStep(kind, form) {
+  if (!form) return;
+  const app = applicationFor(kind);
+  const fd = new FormData(form);
+  const step = Number(fd.get('step') ?? app.step);
+  if (kind === 'seller') applySellerStep(app, step, fd);
+  else applyRunnerStep(app, step, fd);
+  save();
+}
+
+/* ------------------------------ admin session ------------------------------ */
+function adminSession() {
+  try { return JSON.parse(sessionStorage.getItem(ADMIN_SESSION_KEY) || 'null'); }
+  catch { return null; }
+}
+function setAdminSession(role) {
+  try { sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ role, at: Date.now() })); } catch { /* ignore */ }
+}
+function clearAdminSession() {
+  try { sessionStorage.removeItem(ADMIN_SESSION_KEY); } catch { /* ignore */ }
+}
+function adminLockPage() {
+  return `<div class="page">
+    <div class="admin-lock card">
+      <span class="admin-lock__icon">${icon('lock')}</span>
+      <span class="kicker"><i></i>PROTECTED INTERNAL CONSOLE</span>
+      <h1>Operations is not a public portal</h1>
+      <p class="small muted">The NearBuy control tower is an internal workspace for verification, dispatch, pricing and audit. It is deliberately gated and is not linked as a fourth customer portal.</p>
+      <form id="adminUnlockForm" class="admin-lock__form">
+        <label class="field"><span>Demo access code</span>
+          <input class="input" type="text" name="code" placeholder="Enter demo code" autocomplete="off" spellcheck="false" />
+        </label>
+        <button class="btn btn--primary btn--block" type="submit">${icon('shield')} Unlock operations console</button>
+      </form>
+      <div class="notice notice--plain">${icon('lock')}<span>Demo gate only. The code is <b>${ADMIN_CODE}</b>, it creates a browser-session flag, and every record behind it is sample data. Production requires real authentication, role-based permissions, MFA for sensitive roles and server-side checks.</span></div>
+      <div class="admin-lock__links">
+        <a class="btn btn--ghost btn--sm" href="/">${icon('home')} NearBuy home</a>
+        <button class="btn btn--ghost btn--sm" type="button" data-act="nav" data-surface="shop" data-view="home">${icon('bag')} Back to shopping</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* --------------------------------- pieces ---------------------------------- */
+function obNotice(text, tone = 'info') {
+  return `<div class="notice ${tone === 'warn' ? '' : 'notice--' + tone}">${icon(tone === 'warn' ? 'alert' : 'shield')}<span>${text}</span></div>`;
+}
+function obError() {
+  return ui.onboardError ? `<div class="notice">${icon('alert')}<span>${esc(ui.onboardError)}</span></div>` : '';
+}
+function obF(name, label, value, opts = {}) {
+  const type = opts.type || 'text';
+  const attrs = [
+    opts.ph ? `placeholder="${esc(opts.ph)}"` : '',
+    opts.inputmode ? `inputmode="${opts.inputmode}"` : '',
+    opts.maxlength ? `maxlength="${opts.maxlength}"` : '',
+    opts.required === false ? '' : 'required',
+    opts.min ? `min="${opts.min}"` : ''
+  ].filter(Boolean).join(' ');
+  return `<label class="field"><span>${label}</span><input class="input" type="${type}" name="${name}" value="${esc(value ?? '')}" ${attrs} />${opts.hint ? `<small class="hint">${opts.hint}</small>` : ''}</label>`;
+}
+function obS(name, label, value, options, hint = '') {
+  return `<label class="field"><span>${label}</span><select class="select" name="${name}">${options.map((o) => `<option ${o === value ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>${hint ? `<small class="hint">${hint}</small>` : ''}</label>`;
+}
+function obCheck(name, label, checked, hint = '') {
+  return `<label class="ob-check"><input type="checkbox" name="${name}" ${checked ? 'checked' : ''} /><span>${label}${hint ? `<small class="tiny muted">${hint}</small>` : ''}</span></label>`;
+}
+function obRadio(name, value, current, title, sub) {
+  return `<label class="radio-card ${value === current ? 'on' : ''}">
+    <input type="radio" name="${name}" value="${esc(value)}" ${value === current ? 'checked' : ''} />
+    <span><b>${esc(title)}</b><small>${esc(sub)}</small></span>
+  </label>`;
+}
+function obUpload(label, stateText, act, kind, done) {
+  return `<div class="upload-box">
+    <span class="upload-box__icon">${icon(done ? 'checkCircle' : 'package')}</span>
+    <b class="small">${esc(label)}</b>
+    <div class="tiny muted">${esc(stateText)}</div>
+    <button class="btn btn--ghost btn--sm mt-6" type="button" data-act="${act}" data-kind="${kind}">${icon('plus')} ${done ? 'Replace sample' : 'Attach sample'}</button>
+  </div>`;
+}
+function obOtp(kind, app) {
+  return `<div class="form-grid form-grid--2">
+    <label class="field"><span>Mobile number</span>
+      <div class="row gap-8">
+        <input class="input" type="tel" name="phone" value="${esc(app.phone)}" placeholder="10-digit mobile" inputmode="numeric" maxlength="10" required />
+        <button class="btn btn--ghost btn--sm nowrap" type="button" data-act="send-otp" data-kind="${kind}">Send demo OTP</button>
+      </div>
+    </label>
+    ${app.otpSent
+      ? `<label class="field"><span>Enter OTP <span class="otp-inline">${DEMO_OTP}</span></span><input class="input" type="text" name="otp" inputmode="numeric" maxlength="6" placeholder="6-digit code" required /></label>`
+      : `<label class="field"><span>OTP</span><input class="input" type="text" value="" placeholder="Send the demo OTP first" disabled /></label>`}
+  </div>
+  ${app.otpSent ? `<div class="tiny muted">Demo code <b>${DEMO_OTP}</b> — displayed because no SMS is sent in this prototype.</div>` : ''}`;
+}
+function obSummary(rows) {
+  return `<div class="summary-list">${rows.map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v || '—')}</b></div>`).join('')}</div>`;
+}
+function obChecklist(checks) {
+  if (!checks.length) return `<div class="empty" style="padding:22px"><div class="empty__icon">${icon('clipboard')}</div><b>No checks yet</b><p>Automated checks run when the application is submitted.</p></div>`;
+  return `<ul class="checklist">${checks.map((c) => `<li class="${c.state}">${icon(c.state === 'pass' ? 'checkCircle' : c.state === 'fail' ? 'x' : 'alert')}<span><b>${esc(c.label)}</b><br><span class="tiny muted">${esc(c.detail)}</span></span></li>`).join('')}</ul>`;
+}
+function obStatusTone(status) {
+  return { Approved: 'green', Rejected: 'red', 'Correction required': 'amber', 'Under review': 'blue', 'Pending verification': 'amber' }[status] || 'neutral';
+}
+function obHead(kind) {
+  const sell = kind === 'seller';
+  return pageHead(
+    sell ? 'SELLER HUB · ONBOARDING' : 'NEARBUY RUNNER · ONBOARDING',
+    sell ? 'Register your shop' : 'Join NearBuy Runner',
+    sell
+      ? 'Bring a physical shop online. Seven guided steps, then a simulated verification review.'
+      : 'Short local deliveries, chosen by you. Seven guided steps for eligible adults aged 18 or over.',
+    `<a class="btn btn--ghost btn--sm" href="/${sell ? 'seller' : 'runner'}/">${icon('chevronLeft')} Portal home</a>`
+  );
+}
+function obAside(kind, app) {
+  const sell = kind === 'seller';
+  return `<aside class="stack">
+    ${card({
+      title: 'What happens next',
+      body: `<div class="timeline">
+        ${[['Application', 'Your details are saved in this browser only.'],
+           ['Automated checks', 'Format, duplicate and completeness checks run instantly.'],
+           ['Human review', 'A reviewer approves, asks for a correction or explains a rejection.'],
+           ['Go live', sell ? 'The shop becomes eligible for listing and orders.' : 'The partner can go online and receive nearby requests.']]
+          .map(([t, s]) => `<div class="timeline__row"><span class="timeline__dot"></span><div class="timeline__body"><b class="small">${t}</b><p class="tiny muted">${s}</p></div></div>`).join('')}
+      </div>`,
+      foot: `<span class="tiny muted">${icon('shield')} Simulated verification · no real KYC</span>`
+    })}
+    ${card({
+      title: sell ? 'Documents you would need' : 'Eligibility for launch',
+      body: sell
+        ? `<ul class="ticks">${['Shop address proof', 'Owner identity (PAN where applicable)', 'GSTIN if registered', 'Bank account for settlements', 'A clear photo of the shopfront'].map((t) => `<li>${icon('check')} ${t}</li>`).join('')}</ul><div class="tiny muted mt-8">Nothing is uploaded here. Production would use an authorised KYC provider with encrypted storage and human review.</div>`
+        : `<ul class="ticks">${['Verified adult, 18 or older', 'Government photo identity', 'A payout account in your name', 'Emergency contact', 'Safety briefing acknowledgement'].map((t) => `<li>${icon('check')} ${t}</li>`).join('')}</ul><div class="notice notice--plain mt-8">${icon('alert')}<span>NearBuy does not create delivery accounts for minors. Guardian consent alone does not change this launch policy.</span></div>`
+    })}
+  </aside>`;
+}
+
+/* ------------------------------ seller wizard ------------------------------ */
+function sellerOnboarding() {
+  const app = sellerApplication();
+  if (app.status !== 'Incomplete') return obApplicationPage('seller', app);
+  const step = app.step;
+  return `<div class="page">
+    ${obHead('seller')}
+    ${stepper(SELLER_STEPS, step)}
+    ${obError()}
+    <div class="grid grid--aside">
+      <div class="stack">
+        ${card({
+          title: `Step ${step + 1} of ${SELLER_STEPS.length} · ${SELLER_STEPS[step]}`,
+          body: `<form id="sellerOnboardForm" class="form-grid" novalidate>
+            <input type="hidden" name="step" value="${step}" />
+            ${sellerStepBody(step, app)}
+            <div class="ob-actions">
+              <button class="btn btn--ghost btn--sm" type="button" data-act="ob-back" data-kind="seller" ${step === 0 ? 'disabled' : ''}>${icon('chevronLeft')} Back</button>
+              <button class="btn btn--primary btn--sm" type="submit">${step === SELLER_STEPS.length - 1 ? 'Submit application' : 'Continue'} ${icon('arrowRight')}</button>
+            </div>
+          </form>`
+        })}
+      </div>
+      ${obAside('seller', app)}
+    </div>
+  </div>`;
+}
+
+function sellerStepBody(step, app) {
+  switch (step) {
+    case 0:
+      return `${obOtp('seller', app)}
+        ${obF('email', 'Email (optional)', app.email, { type: 'email', required: false, ph: 'owner@shop.in', hint: 'Used for settlement statements in production.' })}
+        ${obS('language', 'Preferred language', app.language, ['English', 'Hindi'])}
+        ${obCheck('consent', 'I agree to the NearBuy seller terms and privacy notice.', false, 'Demo consent only — no legal agreement is formed.')}`;
+    case 1:
+      return `<div class="stack-sm">${SELLER_TYPES.map(([t, s]) => obRadio('businessType', t, app.businessType, t, s)).join('')}</div>`;
+    case 2:
+      return `${obF('legalName', 'Legal business name', app.legalName, { ph: 'As on your registration' })}
+        ${obF('displayName', 'Shop display name', app.displayName, { ph: 'What neighbours will see' })}
+        ${obF('owner', 'Owner name', app.owner, { ph: 'Full name' })}
+        ${obF('gstin', 'GSTIN (optional)', app.gstin, { ph: '07ABCDE1234F1Z5', required: false, maxlength: 15, hint: 'Format is checked in the demo; not verified with any tax system.' })}`;
+    case 3:
+      return `${obF('address', 'Shop address', app.address, { ph: 'Shop number, street, locality' })}
+        <div class="form-grid form-grid--2">
+          ${obF('pin', 'PIN code', app.pin, { ph: '110016', inputmode: 'numeric', maxlength: 6 })}
+          ${obS('area', 'Service area', app.area, ['Hauz Khas', 'Green Park', 'Saket'])}
+        </div>
+        ${obUpload('Shopfront photograph', app.photo ? 'Sample shop photo attached to this application.' : 'A clear photo of your shopfront, shutter and signage.', 'ob-photo', 'seller', app.photo)}
+        ${obNotice('Map pin, address proof and shopfront review would be checked by a human in production.', 'info')}`;
+    case 4:
+      return `<div class="form-grid form-grid--2">
+          ${obF('hoursOpen', 'Opening time', app.hoursOpen, { ph: '8:00 am' })}
+          ${obF('hoursClose', 'Closing time', app.hoursClose, { ph: '10:00 pm' })}
+        </div>
+        <div class="form-grid form-grid--2">
+          ${obS('holiday', 'Weekly holiday', app.holiday, ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'None'])}
+          ${obS('prep', 'Preparation time', app.prep, ['10–15 min', '15–25 min', '20–30 min', '30–45 min'])}
+        </div>
+        ${obS('radius', 'Maximum delivery radius', String(app.radius), ['1', '2', '3'], 'Kilometres from the shop. Runner payouts follow the configured pricing bands.')}
+        <div class="stack-sm">
+          ${obCheck('pickup', 'Offer store pickup', app.pickup, 'Customers collect from the shop. Always free.')}
+          ${obCheck('delivery', 'Offer NearBuy Runner delivery', app.delivery, 'Only where an eligible partner is available.')}
+        </div>`;
+    case 5:
+      return `${obF('bankHolder', 'Account holder name', app.bankHolder, { ph: 'As printed on the bank account' })}
+        ${obF('bankAcc', 'Bank account number', app.bankAcc, { inputmode: 'numeric', maxlength: 18, ph: '9–18 digits' })}
+        ${obF('ifsc', 'IFSC code', app.ifsc, { maxlength: 11, ph: 'HDFC0001234' })}
+        ${obNotice('No bank connection exists in this prototype. Production needs an authorised verification (for example a penny-drop check) before payouts are enabled.', 'warn')}`;
+    default:
+      return `${obSummary([
+        ['Business', app.businessType],
+        ['Shop name', app.displayName],
+        ['Owner', app.owner],
+        ['Address', `${app.address}, ${app.area} ${app.pin}`],
+        ['Hours', `${app.hoursOpen} – ${app.hoursClose} · closed ${app.holiday}`],
+        ['Fulfilment', [app.pickup ? 'Pickup' : '', app.delivery ? 'Runner delivery' : ''].filter(Boolean).join(' + ')],
+        ['Payout', `•••• ${String(app.bankAcc).slice(-4)} · ${app.ifsc}`]
+      ])}
+      ${obCheck('declaration', 'I confirm these details are accurate and understand verification is simulated here.', false)}
+      ${obNotice('Submitting runs automated checks, then places the application in human review. Nothing goes live automatically.', 'info')}`;
+  }
+}
+
+function applySellerStep(app, step, fd) {
+  const get = (k) => String(fd.get(k) ?? '').trim();
+  switch (step) {
+    case 0:
+      app.phone = get('phone'); app.email = get('email'); app.language = get('language') || 'English';
+      app.otpVerified = get('otp') === DEMO_OTP;
+      app.consent = fd.get('consent') === 'on';
+      break;
+    case 1:
+      if (get('businessType')) app.businessType = get('businessType');
+      break;
+    case 2:
+      app.legalName = get('legalName'); app.displayName = get('displayName');
+      app.owner = get('owner'); app.gstin = get('gstin').toUpperCase();
+      break;
+    case 3:
+      app.address = get('address'); app.pin = get('pin'); app.area = get('area') || app.area;
+      break;
+    case 4:
+      app.hoursOpen = get('hoursOpen'); app.hoursClose = get('hoursClose');
+      app.holiday = get('holiday'); app.prep = get('prep'); app.radius = Number(get('radius')) || 2;
+      app.pickup = fd.get('pickup') === 'on'; app.delivery = fd.get('delivery') === 'on';
+      break;
+    case 5:
+      app.bankHolder = get('bankHolder'); app.bankAcc = get('bankAcc'); app.ifsc = get('ifsc').toUpperCase();
+      break;
+    case 6:
+      app.declaration = fd.get('declaration') === 'on';
+      break;
+    default: break;
+  }
+}
+
+function validateSellerStep(step, app) {
+  switch (step) {
+    case 0:
+      if (!/^[6-9]\d{9}$/.test(app.phone)) return 'Enter a valid 10-digit Indian mobile number.';
+      if (!app.otpSent) return 'Send the demo OTP to verify the mobile number first.';
+      if (!app.otpVerified) return `That OTP is not correct. The demo code is ${DEMO_OTP}.`;
+      if (!app.consent) return 'Accept the seller terms to continue.';
+      return null;
+    case 1:
+      return app.businessType ? null : 'Choose the type of business you operate.';
+    case 2:
+      if (app.legalName.length < 2) return 'Enter the legal business name.';
+      if (app.displayName.length < 2) return 'Enter the name neighbours will see.';
+      if (app.owner.length < 2) return 'Enter the owner name.';
+      if (app.gstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]$/.test(app.gstin)) return 'That GSTIN does not look valid. Leave it blank if the shop is not registered.';
+      return null;
+    case 3:
+      if (app.address.length < 8) return 'Enter the full shop address (street and shop number).';
+      if (!/^\d{6}$/.test(app.pin)) return 'Enter a valid 6-digit PIN code.';
+      if (!app.photo) return 'Attach a sample shopfront photograph to continue.';
+      return null;
+    case 4:
+      if (!app.hoursOpen || !app.hoursClose) return 'Set the opening and closing times.';
+      if (!app.pickup && !app.delivery) return 'Enable pickup, delivery, or both.';
+      return null;
+    case 5:
+      if (app.bankHolder.length < 2) return 'Enter the account holder name.';
+      if (!/^\d{9,18}$/.test(app.bankAcc)) return 'Enter a valid bank account number (9–18 digits).';
+      if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(app.ifsc)) return 'Enter a valid IFSC code, for example HDFC0001234.';
+      return null;
+    default:
+      return app.declaration ? null : 'Confirm the declaration before submitting.';
+  }
+}
+
+function submitSellerStep(fd, form) {
+  const app = sellerApplication();
+  const step = Number(fd.get('step') ?? app.step);
+  applySellerStep(app, step, fd);
+  const error = validateSellerStep(step, app);
+  if (error) { ui.onboardError = error; save(); refreshPage(); return; }
+  ui.onboardError = '';
+  if (step >= SELLER_STEPS.length - 1) { submitSellerApplication(app); return; }
+  app.step = step + 1;
+  save();
+  paint();
+}
+
+function submitSellerApplication(app) {
+  app.checks = [
+    { label: 'Mobile ownership', detail: 'Demo OTP accepted in this browser', state: 'pass' },
+    { label: 'Mobile number format', detail: `+91 ${app.phone}`, state: 'pass' },
+    { label: 'Duplicate shop check', detail: 'No matching demo shop record', state: 'pass' },
+    { label: 'GSTIN format', detail: app.gstin ? 'Format accepted · not verified with GSTN' : 'Not provided · applicability needs review', state: app.gstin ? 'pass' : 'review' },
+    { label: 'Shopfront photograph', detail: app.photo ? 'Sample image attached · clarity needs review' : 'Missing', state: 'review' },
+    { label: 'Location consistency', detail: `PIN ${app.pin} · ${app.area} · map pin not verified`, state: 'review' },
+    { label: 'Bank account', detail: 'Verification provider not connected', state: 'review' }
+  ];
+  app.status = 'Under review';
+  app.submittedAt = nowLabel();
+  app.decidedAt = null;
+  app.decisionNote = 'Automated checks completed; waiting for a human reviewer.';
+  notify('ops', 'New seller application', `${app.displayName || 'Shop'} · ${app.area} · needs review`);
+  audit('Seller application submitted', `${app.displayName || 'Shop'} · ${app.businessType}`, 'Seller onboarding');
+  save();
+  paint();
+  toast('Application submitted. Automated checks ran; a human review is simulated next.', 'clipboard');
+}
+
+/* ------------------------------ runner wizard ------------------------------ */
+function runnerOnboarding() {
+  const app = runnerApplication();
+  if (app.status !== 'Incomplete') return obApplicationPage('runner', app);
+  const step = app.step;
+  return `<div class="page">
+    ${obHead('runner')}
+    ${stepper(RUNNER_STEPS, step)}
+    ${obError()}
+    <div class="grid grid--aside">
+      <div class="stack">
+        ${card({
+          title: `Step ${step + 1} of ${RUNNER_STEPS.length} · ${RUNNER_STEPS[step]}`,
+          body: `<form id="runnerOnboardForm" class="form-grid" novalidate>
+            <input type="hidden" name="step" value="${step}" />
+            ${runnerStepBody(step, app)}
+            <div class="ob-actions">
+              <button class="btn btn--ghost btn--sm" type="button" data-act="ob-back" data-kind="runner" ${step === 0 ? 'disabled' : ''}>${icon('chevronLeft')} Back</button>
+              <button class="btn btn--primary btn--sm" type="submit">${step === RUNNER_STEPS.length - 1 ? 'Submit application' : 'Continue'} ${icon('arrowRight')}</button>
+            </div>
+          </form>`
+        })}
+      </div>
+      ${obAside('runner', app)}
+    </div>
+  </div>`;
+}
+
+function runnerStepBody(step, app) {
+  switch (step) {
+    case 0:
+      return `${obOtp('runner', app)}
+        ${obF('email', 'Email (optional)', app.email, { type: 'email', required: false, ph: 'you@example.com' })}
+        ${obNotice('Only adults aged 18 or over can hold a delivery account at launch. The next step checks the date of birth you enter.', 'info')}`;
+    case 1:
+      return `${obF('name', 'Full name', app.name, { ph: 'As on your identity document' })}
+        ${obF('dob', 'Date of birth', app.dob, { type: 'date', hint: 'Used only for the demo age gate. Not stored anywhere else.' })}
+        ${obF('address', 'Residential address', app.address, { ph: 'House, street, locality' })}
+        ${obF('pin', 'PIN code', app.pin, { inputmode: 'numeric', maxlength: 6, ph: '110016' })}`;
+    case 2:
+      return `${obS('idType', 'Identity document', app.idType, ['Aadhaar', 'PAN', 'Driving licence', 'Passport'])}
+        ${obF('idLast4', 'Last 4 characters of the document number', app.idLast4, { maxlength: 4, ph: '4821', hint: 'Only the last four characters are kept, to demonstrate masking. Full numbers should never be stored in a browser.' })}
+        ${obUpload('Profile photograph', app.selfie ? 'Sample selfie attached (liveness not checked).' : 'A clear, recent photograph of your face.', 'ob-selfie', 'runner', app.selfie)}
+        ${obNotice('Production must use an authorised KYC provider, encrypted storage, consent records and human review for mismatches.', 'warn')}`;
+    case 3:
+      return `<div class="stack-sm">${VEHICLES.map(([t, s]) => obRadio('vehicle', t, app.vehicle, t, s)).join('')}</div>
+        <div class="form-grid form-grid--2">
+          ${obS('area', 'Preferred operating area', app.area, ['Hauz Khas', 'Green Park', 'Saket'])}
+          ${obS('maxKm', 'Maximum delivery distance', String(app.maxKm), ['1', '2', '3'], 'Kilometres you are willing to travel for one task.')}
+        </div>`;
+    case 4:
+      return `${obS('payoutMethod', 'Payout method', app.payoutMethod, ['UPI', 'Bank account'])}
+        ${app.payoutMethod === 'UPI'
+          ? obF('upi', 'UPI ID', app.upi, { ph: 'name@bank' })
+          : `${obF('bankAcc', 'Bank account number', app.bankAcc, { inputmode: 'numeric', maxlength: 18 })}
+             ${obF('ifsc', 'IFSC code', app.ifsc, { maxlength: 11, ph: 'HDFC0001234' })}`}
+        ${obNotice('Payout details are simulated. No UPI mandate is created and no money moves.', 'info')}`;
+    case 5:
+      return `${obF('emergencyName', 'Emergency contact name', app.emergencyName, { ph: 'Family member or friend' })}
+        ${obF('emergencyPhone', 'Emergency contact number', app.emergencyPhone, { inputmode: 'numeric', maxlength: 10 })}
+        <div class="stack-sm">
+          ${obCheck('training', 'I have read the safety briefing', app.training, 'Parcel limits, safe routes, no unsafe deliveries, SOS process.')}
+          ${obCheck('agreement', 'I accept the partner terms and the 18+ launch policy', app.agreement, 'Demo agreement only.')}
+        </div>
+        ${obNotice('No speed-based targets or incentives. You may pass any request without penalty.', 'info')}`;
+    default:
+      return `${obSummary([
+        ['Name', app.name],
+        ['Date of birth', app.dob ? `${app.dob} · ${app.age ?? '—'} years` : ''],
+        ['Identity', app.idLast4 ? `${app.idType} · ••••${app.idLast4}` : ''],
+        ['Delivery type', app.vehicle],
+        ['Operating area', `${app.area} · up to ${app.maxKm} km`],
+        ['Payout', app.payoutMethod === 'UPI' ? app.upi : `•••• ${String(app.bankAcc).slice(-4)} · ${app.ifsc}`],
+        ['Emergency contact', app.emergencyName ? `${app.emergencyName} · ${app.emergencyPhone}` : '']
+      ])}
+      ${obCheck('declaration', 'I confirm the details above are accurate.', false)}
+      ${obNotice('Submitting does not create an active delivery account. Automated checks and a simulated human review follow.', 'info')}`;
+  }
+}
+
+function applyRunnerStep(app, step, fd) {
+  const get = (k) => String(fd.get(k) ?? '').trim();
+  switch (step) {
+    case 0:
+      app.phone = get('phone'); app.email = get('email');
+      app.otpVerified = get('otp') === DEMO_OTP;
+      break;
+    case 1:
+      app.name = get('name'); app.dob = get('dob');
+      app.age = ageFromDob(app.dob);
+      app.address = get('address'); app.pin = get('pin');
+      break;
+    case 2:
+      app.idType = get('idType') || app.idType;
+      app.idLast4 = get('idLast4').toUpperCase();
+      break;
+    case 3:
+      if (get('vehicle')) app.vehicle = get('vehicle');
+      app.area = get('area') || app.area;
+      app.maxKm = Number(get('maxKm')) || app.maxKm;
+      break;
+    case 4:
+      app.payoutMethod = get('payoutMethod') || app.payoutMethod;
+      app.upi = get('upi'); app.bankAcc = get('bankAcc'); app.ifsc = get('ifsc').toUpperCase();
+      break;
+    case 5:
+      app.emergencyName = get('emergencyName'); app.emergencyPhone = get('emergencyPhone');
+      app.training = fd.get('training') === 'on'; app.agreement = fd.get('agreement') === 'on';
+      break;
+    case 6:
+      app.declaration = fd.get('declaration') === 'on';
+      break;
+    default: break;
+  }
+}
+
+function validateRunnerStep(step, app) {
+  switch (step) {
+    case 0:
+      if (!/^[6-9]\d{9}$/.test(app.phone)) return 'Enter a valid 10-digit Indian mobile number.';
+      if (!app.otpSent) return 'Send the demo OTP to verify the mobile number first.';
+      if (!app.otpVerified) return `That OTP is not correct. The demo code is ${DEMO_OTP}.`;
+      return null;
+    case 1:
+      if (app.name.length < 2) return 'Enter your full name.';
+      if (!app.dob) return 'Enter your date of birth.';
+      if (app.age === null) return 'That date of birth is not valid.';
+      if (app.age < 18) return `NearBuy Runner is an adult-only programme. The date entered makes this applicant ${app.age}, and delivery accounts are not created for under-18s. Guardian consent does not change this launch policy.`;
+      if (app.age > 75) return 'Enter a date of birth between 18 and 75 years ago.';
+      if (app.address.length < 8) return 'Enter your residential address.';
+      if (!/^\d{6}$/.test(app.pin)) return 'Enter a valid 6-digit PIN code.';
+      return null;
+    case 2:
+      if (!/^[A-Z0-9]{4}$/.test(app.idLast4)) return 'Enter the last 4 alphanumeric characters of the document.';
+      if (!app.selfie) return 'Attach a sample profile photograph to continue.';
+      return null;
+    case 3:
+      return app.vehicle ? null : 'Choose how you will make deliveries.';
+    case 4:
+      if (app.payoutMethod === 'UPI') {
+        if (!/^[\w.-]{2,}@[\w.-]{2,}$/.test(app.upi)) return 'Enter a valid UPI ID, for example name@bank.';
+      } else {
+        if (!/^\d{9,18}$/.test(app.bankAcc)) return 'Enter a valid bank account number (9–18 digits).';
+        if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(app.ifsc)) return 'Enter a valid IFSC code.';
+      }
+      return null;
+    case 5:
+      if (app.emergencyName.length < 2) return 'Enter an emergency contact name.';
+      if (!/^[6-9]\d{9}$/.test(app.emergencyPhone)) return 'Enter a valid 10-digit emergency contact number.';
+      if (!app.training) return 'Acknowledge the safety briefing.';
+      if (!app.agreement) return 'Accept the partner terms and the 18+ policy.';
+      return null;
+    default:
+      return app.declaration ? null : 'Confirm the declaration before submitting.';
+  }
+}
+
+function submitRunnerStep(fd, form) {
+  const app = runnerApplication();
+  const step = Number(fd.get('step') ?? app.step);
+  applyRunnerStep(app, step, fd);
+  const error = validateRunnerStep(step, app);
+  if (error) { ui.onboardError = error; save(); refreshPage(); return; }
+  ui.onboardError = '';
+  if (step >= RUNNER_STEPS.length - 1) { submitRunnerApplication(app); return; }
+  app.step = step + 1;
+  save();
+  paint();
+}
+
+function submitRunnerApplication(app) {
+  app.checks = [
+    { label: 'Age gate (18+)', detail: `Date of birth gives ${app.age} years`, state: app.age >= 18 ? 'pass' : 'fail' },
+    { label: 'Mobile ownership', detail: 'Demo OTP accepted in this browser', state: 'pass' },
+    { label: 'Mobile number format', detail: `+91 ${app.phone}`, state: 'pass' },
+    { label: 'Identity document format', detail: `${app.idType} ending ${app.idLast4} · not verified`, state: 'review' },
+    { label: 'Liveness / selfie', detail: 'Sample image attached · not checked', state: 'review' },
+    { label: 'Emergency contact', detail: `+91 ${app.emergencyPhone}`, state: 'pass' },
+    { label: 'Safety briefing + agreement', detail: 'Acknowledged in this browser', state: 'pass' },
+    { label: 'Payout verification', detail: 'Provider not connected', state: 'review' }
+  ];
+  app.status = app.age >= 18 ? 'Under review' : 'Rejected';
+  app.submittedAt = nowLabel();
+  app.decidedAt = app.status === 'Rejected' ? nowLabel() : null;
+  app.decisionNote = app.age >= 18
+    ? 'Automated checks completed; waiting for a human reviewer.'
+    : 'Automatic ineligibility: launch policy requires verified adults aged 18 or over.';
+  notify('ops', 'New partner application', `${app.name || 'Applicant'} · ${app.vehicle} · ${app.area}`);
+  audit('Partner application submitted', `${app.name || 'Applicant'} · age ${app.age}`, 'Runner onboarding');
+  save();
+  paint();
+  toast(app.age >= 18 ? 'Application submitted for simulated review.' : 'Application rejected by the 18+ launch policy.', app.age >= 18 ? 'clipboard' : 'alert');
+}
+
+function ageFromDob(dob) {
+  if (!dob) return null;
+  const d = new Date(`${dob}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - d.getFullYear();
+  const m = now.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age -= 1;
+  if (age < 0 || age > 120) return null;
+  return age;
+}
+
+/* --------------------------- application status ---------------------------- */
+function obApplicationPage(kind, app) {
+  const sell = kind === 'seller';
+  const approved = app.status === 'Approved';
+  const failed = ['Rejected', 'Correction required'].includes(app.status);
+  return `<div class="page">
+    ${obHead(kind)}
+    <div class="grid grid--aside">
+      <div class="stack">
+        ${card({
+          title: 'Application status',
+          action: `<span class="pill pill--${obStatusTone(app.status)}"><i></i>${esc(app.status)}</span>`,
+          body: `<div class="stack-sm">
+            <div class="row between wrap gap-8">
+              <div><b class="small">${esc(sell ? (app.displayName || 'Your shop') : (app.name || 'Your application'))}</b><div class="tiny muted">${sell ? `${esc(app.businessType)} · ${esc(app.area)}` : `${esc(app.vehicle)} · ${esc(app.area)} · up to ${app.maxKm} km`}</div></div>
+              <div class="tiny muted">Submitted ${esc(app.submittedAt || '—')}</div>
+            </div>
+            ${app.decisionNote ? `<div class="notice ${failed ? '' : approved ? 'notice--plain' : 'notice--info'}">${icon(approved ? 'checkCircle' : failed ? 'alert' : 'clock')}<span>${esc(app.decisionNote)}</span></div>` : ''}
+            ${approved ? `<div class="notice notice--plain">${icon('checkCircle')}<span>Approved in this demo. ${sell ? 'The shop would now be eligible for listings and orders.' : 'The partner would now be eligible to go online.'} No real account was created.</span></div>` : ''}
+          </div>`,
+          foot: `<div class="row between wrap gap-8">
+            <button class="btn btn--ghost btn--sm" type="button" data-act="ob-restart" data-kind="${kind}">${icon('refresh')} Start a new application</button>
+            ${approved
+              ? `<button class="btn btn--primary btn--sm" type="button" data-act="nav" data-surface="${sell ? 'sell' : 'deliver'}" data-view="overview">${icon('arrowRight')} Open ${sell ? 'Seller Hub' : 'Runner workspace'}</button>`
+              : `<div class="row gap-6 wrap">
+                   <button class="btn btn--soft btn--sm" type="button" data-act="ob-decide" data-kind="${kind}" data-decision="Correction required">Request correction</button>
+                   <button class="btn btn--ghost btn--sm" type="button" data-act="ob-decide" data-kind="${kind}" data-decision="Rejected">Reject (demo)</button>
+                   <button class="btn btn--primary btn--sm" type="button" data-act="ob-decide" data-kind="${kind}" data-decision="Approved">${icon('check')} Simulate approval</button>
+                 </div>`}
+          </div>`
+        })}
+        ${card({ title: 'Automated checks', sub: 'Assistive only — they never make the final decision.', body: obChecklist(app.checks) })}
+      </div>
+      <aside class="stack">
+        ${card({ title: 'Where this appears', body: `<div class="small">Applications are visible to the internal operations console under <b>Verifications</b>. That workspace is deliberately protected and is not a public portal.</div><button class="btn btn--ghost btn--sm mt-10" type="button" data-act="nav" data-surface="ops" data-view="verifications">${icon('shield')} Open verifications</button>` })}
+        ${card({ body: `<div class="row gap-8 small"><span class="kpi__icon">${icon('lock')}</span><div><b>Nothing left this browser</b><div class="tiny muted">No SMS, document, bank or identity service was contacted. Production requires authorised providers, encryption and retention rules.</div></div></div>` })}
+      </aside>
+    </div>
+  </div>`;
+}
+
+function decideApplication(kind, decision) {
+  const app = applicationFor(kind);
+  if (!app || app.status === 'Incomplete') { toast('No submitted application to review.', 'alert'); return; }
+  const sell = kind === 'seller';
+  app.status = decision;
+  app.decidedAt = nowLabel();
+  if (decision === 'Approved') {
+    app.decisionNote = `Approved in the demo by an operations reviewer. ${sell ? 'Eligible for listings and orders.' : 'Eligible to receive simulated requests.'}`;
+    if (!sell) {
+      const initials = (app.name || 'NB').split(/\s+/).map((x) => x[0]).slice(0, 2).join('').toUpperCase();
+      if (!state.runners.some((r) => r.id === 'runner-applicant')) {
+        state.runners.push({
+          id: 'runner-applicant', name: app.name, initials, mode: app.vehicle, zone: app.area,
+          age: app.age, online: false, maxKm: app.maxKm, categories: ['Grocery', 'Stationery', 'General'],
+          alerts: true, shareLocation: false, avatar: 'blue', demoApplicant: true
+        });
+      }
+    }
+    notify(sell ? 'sell' : 'deliver', 'Application approved (demo)', sell ? `${app.displayName} can start listing.` : `${app.name} can go online.`);
+  } else if (decision === 'Correction required') {
+    app.decisionNote = 'Reviewer needs a correction before this application can be approved. In production the specific field and an appeal route would be listed here.';
+  } else {
+    app.decisionNote = 'Application rejected in the demo. A real rejection must carry a reason code, reviewer identity and an appeal route.';
+  }
+  audit('Application ' + decision.toLowerCase(), `${sell ? app.displayName : app.name} · ${kind}`, 'Ops reviewer (demo)');
+  save();
+  paint();
+  toast(`Application marked “${decision}”.`, decision === 'Approved' ? 'checkCircle' : 'alert');
+}
+
+function restartApplication(kind) {
+  if (kind === 'seller') state.onboarding.seller = sellerBlank();
+  else state.onboarding.runner = runnerBlank();
+  save();
+  paint();
+  toast('Started a fresh demo application.', 'refresh');
+}
+
+/* ------------------------------ ops queue ---------------------------------- */
+function opsApplications() {
+  return [
+    { kind: 'seller', app: state.onboarding.seller, title: state.onboarding.seller.displayName || 'Shop application' },
+    { kind: 'runner', app: state.onboarding.runner, title: state.onboarding.runner.name || 'Partner application' }
+  ].filter((x) => x.app.status !== 'Incomplete');
+}
+
+function opsVerifications() {
+  const apps = opsApplications();
+  const pending = apps.filter((a) => !['Approved', 'Rejected'].includes(a.app.status)).length;
+  return `<div class="page">
+    ${pageHead('OPS · VERIFICATIONS', 'Verification queue', 'Review seller and delivery-partner applications. Simulated records only — no document, identity or bank check exists.',
+      `<span class="chip active">${icon('shield')} ${adminSession()?.role || 'Reviewer'} · demo</span>`)}
+    <div class="grid grid--kpi">
+      ${kpi({ label: 'Applications', value: apps.length, icon: 'clipboard', foot: 'submitted in this browser' })}
+      ${kpi({ label: 'Awaiting decision', value: pending, icon: 'clock', foot: 'simulated SLA none' })}
+      ${kpi({ label: 'Verified partners', value: state.runners.length, icon: 'users', foot: 'demo profiles only' })}
+      ${kpi({ label: 'Checks automated', value: apps.reduce((n, a) => n + a.app.checks.length, 0), icon: 'zap', foot: 'assistive, not decisive' })}
+    </div>
+    ${apps.length ? `<div class="stack">
+      ${apps.map(({ kind, app }) => card({
+        title: kind === 'seller' ? `Seller application · ${esc(app.displayName || 'Unnamed shop')}` : `Partner application · ${esc(app.name || 'Unnamed applicant')}`,
+        sub: kind === 'seller'
+          ? `${esc(app.businessType)} · ${esc(app.area)} ${esc(app.pin)} · submitted ${esc(app.submittedAt || '—')}`
+          : `${esc(app.vehicle)} · ${esc(app.area)} · age ${app.age ?? '—'} · submitted ${esc(app.submittedAt || '—')}`,
+        action: `<span class="pill pill--${obStatusTone(app.status)}"><i></i>${esc(app.status)}</span>`,
+        body: `<div class="stack-sm">
+          ${obChecklist(app.checks)}
+          ${app.decisionNote ? `<div class="tiny muted">${esc(app.decisionNote)}</div>` : ''}
+        </div>`,
+        foot: `<div class="row between wrap gap-8">
+          <span class="tiny muted">${icon('lock')} Reviewer decisions are written to the demo audit log.</span>
+          <div class="row gap-6 wrap">
+            <button class="btn btn--soft btn--sm" type="button" data-act="ob-decide" data-kind="${kind}" data-decision="Correction required">${icon('refresh')} Request correction</button>
+            <button class="btn btn--ghost btn--sm" type="button" data-act="ob-decide" data-kind="${kind}" data-decision="Rejected">Reject</button>
+            <button class="btn btn--primary btn--sm" type="button" data-act="ob-decide" data-kind="${kind}" data-decision="Approved">${icon('check')} Approve</button>
+          </div>
+        </div>`
+      })).join('')}
+    </div>` : card({
+      title: 'Nothing waiting',
+      body: emptyState('clipboard', 'No applications submitted', 'Start a seller or partner application from the public portal, then return here to review it.', `<div class="row gap-8 mt-10"><a class="btn btn--ghost btn--sm" href="/seller/register/">Seller application</a><a class="btn btn--ghost btn--sm" href="/runner/register/">Partner application</a></div>`)
+    })}
+    <div class="notice notice--plain">${icon('lock')}<span>Demo queue. Production decisions require authenticated reviewers with role permissions, reason codes, evidence retention, approvals for sensitive actions and an appeal route. Automated checks must never make irreversible decisions.</span></div>
+  </div>`;
+}
+
 function pageHtml() {
+  if (route.surface === 'ops' && !adminSession()) return adminLockPage();
   switch (route.surface) {
     case 'sell': return sellPage();
     case 'deliver': return deliverPage();
@@ -2726,6 +3500,16 @@ function refreshPage() {
   }
 }
 let lastRouteKey = null;
+function lockedBar() {
+  return `<header class="topbar topbar--locked">
+    <a class="rail__brand" href="/" aria-label="NearBuy home">
+      ${LOGO}<span class="word"><b>Near<em>Buy</em></b><small>OPERATIONS</small></span>
+    </a>
+    <div class="topbar__spacer"></div>
+    <span class="pill pill--outline">${icon('lock')} Internal · demo</span>
+  </header>`;
+}
+
 function paint() {
   readRoute();
   const key = `${route.surface}/${route.view}/${route.id || ''}`;
@@ -2733,7 +3517,11 @@ function paint() {
   lastRouteKey = key;
   const y = window.scrollY;
   document.body.dataset.surface = route.surface;
-  $('#app').innerHTML = `${railHtml()}<div class="scrim ${ui.drawer ? 'show' : ''}" id="scrim" data-act="drawer"></div>
+  const opsLocked = route.surface === 'ops' && !adminSession();
+  document.body.classList.toggle('ops-locked', opsLocked);
+  $('#app').innerHTML = opsLocked
+    ? `<div class="main">${lockedBar()}<main class="content"><div id="page">${pageHtml()}</div></main></div>`
+    : `${railHtml()}<div class="scrim ${ui.drawer ? 'show' : ''}" id="scrim" data-act="drawer"></div>
     <div class="main">${topbarHtml()}<main class="content"><div id="page">${pageHtml()}</div></main></div>${mobilebarHtml()}`;
   renderOverlay();
   syncDrawer();
@@ -2847,6 +3635,20 @@ function handleSubmit(form, event) {
       save(); paint(); toast('Sample report saved. Ops can see it now.', 'shield');
       break;
     }
+    case 'adminUnlockForm': {
+      const code = String(fd.get('code') || '').trim().toUpperCase();
+      if (code !== ADMIN_CODE) {
+        toast('That demo access code is not correct.', 'alert');
+        break;
+      }
+      setAdminSession('Operations reviewer');
+      audit('Operations console unlocked', 'Demo access code accepted in this browser', 'Demo gate');
+      save(); paint();
+      toast('Operations console unlocked for this tab. All records are demo data.', 'shield');
+      break;
+    }
+    case 'sellerOnboardForm': submitSellerStep(fd, form); break;
+    case 'runnerOnboardForm': submitRunnerStep(fd, form); break;
     case 'runner-support': case 'support': {
       audit('Demo note', `${form.id} · ${String(fd.get('topic') || 'general')}`, 'Demo user');
       save(); paint(); toast('Demo note saved in this browser. Nobody was contacted.', 'mail');
