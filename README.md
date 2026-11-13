@@ -1,6 +1,8 @@
-# NearBuy One
+# NearBuy
 
-**One portal for the whole neighbourhood.** Shop, sell, deliver, run a fleet and operate the network — five workspaces inside a single, consistent shell, sharing one live data model.
+**Your neighbourhood. Everything you need.**
+
+A public, mobile-first marketing site for a neighbourhood commerce platform — 3D hero, three portal entry points, categories, how it works, partner programme and support — sitting in front of **NearBuy One**, the working product: five workspaces sharing one live data model.
 
 ```bash
 npm start
@@ -9,6 +11,31 @@ npm start
 Then open **http://localhost:4173** — no build step, no dependencies, no backend.
 
 ---
+
+## The public site
+
+| Route | Page |
+| --- | --- |
+| `/` | Universal homepage — 3D hero, portals, categories, how it works, why NearBuy, portal previews, partners, trust, FAQs |
+| `/customer/` · `/customer/login/` | Enters the customer portal (redirects into NearBuy One, Shop workspace) |
+| `/seller/` · `/seller/register/` | Enters the seller portal (Sell workspace) |
+| `/runner/` · `/runner/register/` | Enters the delivery-partner portal (Deliver workspace) |
+| `/about/` | About NearBuy, the neighbourhood model and the prototype disclaimer |
+| `/help/` | Help centre with quick links, 8 FAQs and support routes |
+| `/portal.html` | NearBuy One itself — the internal product shell and operations console |
+
+Three portals, three separate front doors, independent sign-in / registration / verification journeys, one backend. The homepage is the only public entry point; the operations console stays internal.
+
+### Homepage build notes
+
+- **3D without the weight** — CSS 3D transforms, pointer tilt on the portal cards, layered parallax on the hero diorama, floating glass stat cards, soft aurora gradients. No WebGL, no 3D libraries, no layout thrash: all motion runs on `transform` / `translate` inside `requestAnimationFrame`.
+- **Reduced motion is a feature** — the footer *Reduce motion* control and `prefers-reduced-motion` both stop parallax, tilt, marquee and float animations, and reveal content instantly. The choice is remembered in `localStorage` (`nearbuy.motion`).
+- **Light on mobile** — single-column hero, simplified scene (parallax off on coarse pointers), 2×2 then 1-up grids, and a scrollable tab strip. Art is compressed: 164 KB hero JPEG, ~56–72 KB portal renders.
+- **Accessible by default** — skip link, one `<h1>`, labelled landmarks, `aria-selected` tablist with arrow-key support, focus-trapped portal chooser with `Esc`, visible focus rings, `aria-current` on the active page.
+
+## NearBuy One
+
+**One portal for the whole neighbourhood.** Shop, sell, deliver, run a fleet and operate the network — five workspaces inside a single, consistent shell, sharing one live data model, at **`/portal.html`**.
 
 ## Why this exists
 
@@ -75,13 +102,21 @@ Reset everything from **All workspaces → Reset demo data**, or the rail footer
 ## Files
 
 ```
-index.html        the unified portal shell
-nearbuy.css       design system + every workspace style
-nearbuy.js        data, store, router, five workspaces, flows, modals
-classic.html      the previous standalone customer storefront (kept for reference)
-seller.html · partner.html · business.html · delivery-admin.html
-                  the previous standalone portals (legacy)
-public/           brand assets
+index.html            the universal homepage (3D marketing site)
+home.css · home.js    homepage design system, tilt/parallax/reveal, tabs, chooser
+about/ · help/        static public pages built on the same system
+customer/ seller/ runner/
+                      portal front doors; each redirects into its workspace
+portal.html           NearBuy One — the unified product shell
+nearbuy.css           product design system + every workspace style
+nearbuy.js            data, store, router, five workspaces, flows, modals
+classic.html · seller.html · partner.html · business.html · delivery-admin.html
+                      earlier standalone pages (legacy, kept for reference)
+public/assets/        brand mark + compressed 3D renders used by the homepage
 ```
+
+## Brand
+
+Deep navy `#081428`, marigold `#f47718`, cream `#fbf7f0` and white. Display type is Manrope, body type DM Sans, with system fallbacks. Cards are 16–26 px radius; motion is 200–700 ms on a single easing curve.
 
 > **Prototype notice.** This is a simulated demo. Checkout charges nothing, no shop is contacted, no runner is dispatched, no OTP is sent, no payout or bank account exists, and no personal or sensitive information should be entered. Maps, distances and pricing are schematic. The proposed adult-only delivery policy and any real worker or business arrangement require qualified Indian legal review; this demo does not determine legal eligibility.

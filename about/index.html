@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#081428" />
+  <meta name="description" content="NearBuy is a neighbourhood commerce platform connecting customers, local shops and delivery partners inside a small, walkable radius." />
+  <title>About NearBuy — built for your neighbourhood</title>
+  <link rel="icon" href="/public/assets/nearbuy-logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/home.css" />
+  <script>
+    (function () {
+      var d = document.documentElement;
+      d.classList.add('js-ready');
+      try {
+        var pref = localStorage.getItem('nearbuy.motion');
+        if (pref === 'reduced' || (!pref && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+          d.setAttribute('data-motion', 'reduced');
+        }
+      } catch (e) {}
+      setTimeout(function () { if (!window.__nbHomeReady) d.classList.remove('js-ready'); }, 2500);
+    })();
+  </script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <svg class="sprite" aria-hidden="true" focusable="false">
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h15"/><path d="m13 6 6 6-6 6"/></symbol>
+    <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="M7 17 17 7"/><path d="M8.5 7H17v8.5"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 2.4 9 5-9 5-9-5z"/><path d="m3 12.4 9 5 9-5"/><path d="m3 17.4 9 5 9-5"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-bag" viewBox="0 0 24 24"><path d="M6 7h12l1.2 12.7a1.2 1.2 0 0 1-1.2 1.3H6a1.2 1.2 0 0 1-1.2-1.3z"/><path d="M9 10V6.5a3 3 0 0 1 6 0V10"/></symbol>
+    <symbol id="i-store" viewBox="0 0 24 24"><path d="M3.4 9.4 5 4h14l1.6 5.4"/><path d="M4 9.4h16V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M9.4 21v-5.6h5.2V21"/></symbol>
+    <symbol id="i-truck" viewBox="0 0 24 24"><path d="M2.5 5.5h10.5v11H2.5z"/><path d="M13 8.5h4.2l3.8 3.8v4.2H13z"/><circle cx="6.6" cy="18.4" r="1.9"/><circle cx="17.4" cy="18.4" r="1.9"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24"><path d="M12 2.6 21 7v10l-9 4.4L3 17V7z"/><path d="m3 7 9 4.4L21 7"/><path d="M12 21.4V11.4"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="2.6"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5.4L12 2.5 4 5.4V12c0 6 8 10 8 10z"/><path d="m8.6 11.8 2.3 2.3 4.5-4.5"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.4V12l3.2 2"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.2"/><path d="m3.6 6.5 8.4 6 8.4-6"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><path d="M5 3h3.4l1.8 4.4-2.2 1.6a12 12 0 0 0 5 5l1.6-2.2L19 13.6V17a2 2 0 0 1-2.2 2A16 16 0 0 1 3 5.2 2 2 0 0 1 5 3z"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-1a5 5 0 0 0-5-5H7a5 5 0 0 0-5 5v1"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-1a5 5 0 0 0-4-4.9"/><path d="M16.6 3.2a4 4 0 0 1 0 7.6"/></symbol>
+  </svg>
+
+  <header class="nav" id="nav">
+    <div class="nav__inner">
+      <a class="brand" href="/" aria-label="NearBuy home">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 44 44"><path d="M22 4.5c-7.7 0-14 6.1-14 13.6 0 9.6 11 20.4 13.3 22.4a1 1 0 0 0 1.4 0C25 38.5 36 27.7 36 18.1 36 10.6 29.7 4.5 22 4.5Z" fill="#1b3a72"/><circle cx="22" cy="18" r="7.4" fill="none" stroke="#fff" stroke-width="3.4"/><path d="M6.5 25.5c5.5 4.6 15 6.6 30.5-1.4" fill="none" stroke="#f47718" stroke-width="3.6" stroke-linecap="round"/></svg>
+        </span>
+        <span class="brand__word">Near<em>Buy</em></span>
+      </a>
+      <nav class="nav__links" aria-label="Primary">
+        <a href="/">Home</a>
+        <a href="/#categories">Categories</a>
+        <a href="/#how">How it works</a>
+        <a href="/about/" aria-current="page">About</a>
+        <a href="/help/" >Help</a>
+      </nav>
+      <div class="nav__actions">
+        <a class="btn btn--ghost btn--sm nav__portal-btn" href="/#portals">
+          <svg class="ic"><use href="#i-layers"/></svg>
+          Choose your portal
+        </a>
+        <a class="btn btn--primary btn--sm" href="/#portals">Sign in</a>
+        <button class="nav__toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="nav">
+          <svg class="ic"><use href="#i-menu"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="page-hero">
+      <div class="wrap page-hero__inner">
+        <span class="page-hero__crumb"><a href="/">Home</a> / About</span>
+        <span class="eyebrow">About NearBuy</span>
+        <h1>Built for the street you actually live on.</h1>
+        <p>NearBuy is a neighbourhood commerce platform. It brings the shops around the corner online, gives shopkeepers the tools to run and grow, and lets nearby partners earn from short, local deliveries — with one shared record underneath.</p>
+        <div class="page-hero__actions">
+          <a class="btn btn--primary btn--lg" href="/customer/">Explore nearby shops <svg class="ic ic--arrow"><use href="#i-arrow"/></svg></a>
+          <a class="btn btn--ghost btn--lg" href="/#portals">Choose your portal</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--cream">
+      <div class="wrap split-2">
+        <div class="prose" data-reveal>
+          <span class="eyebrow eyebrow--dark">Why we exist</span>
+          <h2>Big platforms made local shopping anonymous.</h2>
+          <p>Delivery apps are built to move products from distant warehouses as fast as possible. The shop at the end of your lane — the one that knows your family, keeps your brand of milk and opens early — rarely gets a look in.</p>
+          <p>NearBuy flips that. We start with a <strong>small serviceable radius</strong>, list the shops that are genuinely nearby, and let you choose home delivery or a free store pickup. When you order, the money and the relationship stay in the neighbourhood.</p>
+          <p>For shopkeepers, that means a storefront, a catalogue and an order queue without a website project. For delivery partners, it means short routes with the earning shown before you accept.</p>
+          <h3>What we are building towards</h3>
+          <p>A dense, walkable network: more neighbourhoods, more categories, faster local delivery — and a business model that does not depend on squeezing the shopkeeper.</p>
+        </div>
+        <div class="stat-stack" data-reveal style="--i:1">
+          <div><b>3</b><small>Focused portals on one platform</small></div>
+          <div><b>1.2 km</b><small>Typical serviceable radius</small></div>
+          <div><b>15–35 min</b><small>Local delivery window</small></div>
+          <div><b>₹0</b><small>Delivery fee on store pickup</small></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--paper">
+      <div class="wrap">
+        <div class="section__head" data-reveal>
+          <span class="eyebrow eyebrow--dark">What we believe</span>
+          <h2>Local first is a design decision, not a slogan.</h2>
+          <p>Every screen is shaped by these three commitments.</p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature" data-reveal style="--i:0">
+            <span class="feature__icon"><svg class="ic"><use href="#i-pin"/></svg></span>
+            <h3>Proximity over speed</h3>
+            <p>We optimise for the nearest shop that has what you need, not the fastest truck from the edge of the city.</p>
+          </article>
+          <article class="feature" data-reveal style="--i:1">
+            <span class="feature__icon"><svg class="ic"><use href="#i-shield"/></svg></span>
+            <h3>Honest by default</h3>
+            <p>Distances, delivery charges and partner payouts are shown plainly — before you order, accept or register.</p>
+          </article>
+          <article class="feature" data-reveal style="--i:2">
+            <span class="feature__icon"><svg class="ic"><use href="#i-users"/></svg></span>
+            <h3>People stay visible</h3>
+            <p>Shops keep their name, hours and character. Partners see the route. Customers see who they are buying from.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--cream">
+      <div class="wrap">
+        <div class="section__head section__head--split">
+          <div data-reveal>
+            <span class="eyebrow eyebrow--dark">One platform, three portals</span>
+            <h2>Separate doors. Shared foundation.</h2>
+          </div>
+          <p data-reveal>Customers, sellers and delivery partners each get an experience designed for their job — with independent sign-in, verification and dashboards on the same backend.</p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature" data-reveal style="--i:0">
+            <span class="feature__icon"><svg class="ic"><use href="#i-bag"/></svg></span>
+            <h3>Customer portal</h3>
+            <p>Discover nearby shops, compare what is in stock, check out for delivery or pickup, and follow the order to the door.</p>
+            <p><a class="learn learn--dark" href="/customer/">Open customer portal <svg class="ic"><use href="#i-arrow-up"/></svg></a></p>
+          </article>
+          <article class="feature" data-reveal style="--i:1">
+            <span class="feature__icon"><svg class="ic"><use href="#i-store"/></svg></span>
+            <h3>Seller portal</h3>
+            <p>Build a catalogue, manage stock, accept orders, request a Runner and track settlements and growth.</p>
+            <p><a class="learn learn--dark" href="/seller/">Open seller portal <svg class="ic"><use href="#i-arrow-up"/></svg></a></p>
+          </article>
+          <article class="feature" data-reveal style="--i:2">
+            <span class="feature__icon"><svg class="ic"><use href="#i-truck"/></svg></span>
+            <h3>Delivery partner portal</h3>
+            <p>Go online when it suits you, take short nearby requests, confirm handovers with OTPs and see earnings clearly.</p>
+            <p><a class="learn learn--dark" href="/runner/">Open runner portal <svg class="ic"><use href="#i-arrow-up"/></svg></a></p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--paper">
+      <div class="wrap">
+        <div class="trust__note" data-reveal>
+          <svg class="ic"><use href="#i-shield"/></svg>
+          <p><b>About this prototype.</b> This website demonstrates the NearBuy product with simulated accounts, shops, orders, OTPs, earnings and verification steps stored in your browser. No real payments, dispatch, KYC or delivery operations take place.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta-band" aria-labelledby="aboutCta">
+      <div class="cta-band__bg" aria-hidden="true"><span></span><span></span></div>
+      <div class="wrap cta-band__inner" data-reveal>
+        <span class="eyebrow">Good things are closer</span>
+        <h2 id="aboutCta">Start with your own street.</h2>
+        <p>Browse the shops near you, or join the network as a seller or delivery partner.</p>
+        <div class="cta-band__row">
+          <a class="btn btn--primary btn--lg" href="/customer/">Explore nearby shops <svg class="ic ic--arrow"><use href="#i-arrow"/></svg></a>
+          <a class="btn btn--ghost btn--lg" href="/#portals">Choose your portal</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer__inner">
+      <div class="footer__brand">
+        <a class="brand" href="/" aria-label="NearBuy home">
+          <span class="brand__mark" aria-hidden="true">
+            <svg viewBox="0 0 44 44"><path d="M22 4.5c-7.7 0-14 6.1-14 13.6 0 9.6 11 20.4 13.3 22.4a1 1 0 0 0 1.4 0C25 38.5 36 27.7 36 18.1 36 10.6 29.7 4.5 22 4.5Z" fill="#1b3a72"/><circle cx="22" cy="18" r="7.4" fill="none" stroke="#fff" stroke-width="3.4"/><path d="M6.5 25.5c5.5 4.6 15 6.6 30.5-1.4" fill="none" stroke="#f47718" stroke-width="3.6" stroke-linecap="round"/></svg>
+          </span>
+          <span class="brand__word">Near<em>Buy</em></span>
+        </a>
+        <p class="footer__tagline">Your neighbourhood.<br />Everything you need.</p>
+        <p class="footer__meta">Hauz Khas · New Delhi<br />hello@nearbuy.in</p>
+        <div class="footer__social" role="group" aria-label="NearBuy channels">
+          <a href="mailto:hello@nearbuy.in" aria-label="Email NearBuy"><svg class="ic"><use href="#i-mail"/></svg></a>
+          <a href="/help/" aria-label="Help centre"><svg class="ic"><use href="#i-phone"/></svg></a>
+          <a href="/#trust" aria-label="Trust and safety"><svg class="ic"><use href="#i-shield"/></svg></a>
+        </div>
+      </div>
+      <div class="footer__cols">
+        <div>
+          <h4>Explore</h4>
+          <a href="/">Home</a>
+          <a href="/#categories">Categories</a>
+          <a href="/about/">About NearBuy</a>
+          <a href="/help/">Help centre</a>
+        </div>
+        <div>
+          <h4>Portals</h4>
+          <a href="/customer/">Customer</a>
+          <a href="/seller/">Seller</a>
+          <a href="/runner/">Delivery partner</a>
+          <a href="/portal.html">All workspaces</a>
+        </div>
+        <div>
+          <h4>Legal</h4>
+          <a href="/#trust">Privacy policy</a>
+          <a href="/#trust">Terms &amp; conditions</a>
+          <a href="/#trust">Refund policy</a>
+          <button class="footer__motion" id="motionToggle" type="button" aria-pressed="false">
+            <span class="footer__motion-dot" aria-hidden="true"></span> <span id="motionLabel">Reduce motion</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrap footer__bottom">
+      <span>© <span id="year">2026</span> NearBuy. All rights reserved.</span>
+      <span class="footer__disclaimer">Prototype demo · sample data only · no real payments, dispatch or KYC.</span>
+      <a href="/portal.html" class="footer__admin">Operations console ↗</a>
+    </div>
+  </footer>
+
+  <script src="/home.js"></script>
+</body>
+</html>

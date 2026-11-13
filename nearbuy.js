@@ -469,7 +469,12 @@ const ui = { drawer: false, modal: null, palette: null, query: '', filters: {} }
 
 function readRoute() {
   const raw = location.hash.replace(/^#\/?/, '');
-  const parts = raw.split('/').filter(Boolean);
+  const hashQuery = raw.includes('?') ? raw.slice(raw.indexOf('?') + 1) : '';
+  const parts = raw.split('?')[0].split('/').filter(Boolean);
+  if (hashQuery) {
+    const cat = new URLSearchParams(hashQuery).get('cat');
+    if (cat) ui.category = cat;
+  }
   if (parts.length && SURFACES[parts[0]]) {
     route.surface = parts[0];
     route.view = parts[1] || 'home';
