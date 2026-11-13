@@ -2,7 +2,7 @@
 
 **Your neighbourhood. Everything you need.**
 
-A public, mobile-first marketing site for a neighbourhood commerce platform — 3D hero, three portal entry points, categories, how it works, partner programme and support — sitting in front of **NearBuy One**, the working product: five workspaces sharing one live data model.
+A public, mobile-first marketing site for a neighbourhood commerce platform — 3D hero, three portal entry points, categories, how it works, partner programme and support — sitting in front of **NearBuy One**, the working product: one shared data model behind five workspaces, each with its own separate sign-in.
 
 ```bash
 npm start
@@ -27,6 +27,18 @@ Then open **http://localhost:4173** — no build step, no dependencies, no backe
 
 Three portals, three separate front doors, independent sign-in / registration / verification journeys, one backend. The homepage is the only public entry point; the operations console stays internal.
 
+Each portal signs in **on its own** and opens **only its own tools**. There is no workspace switcher, no persona dropdown, no `Alt`-number jump and no cross-portal link that carries a session across: landing on another portal's URL shows that portal's sign-in, and a customer session never opens seller, partner, fleet or operations screens.
+
+| Portal | Front door | Demo sign-in |
+| --- | --- | --- |
+| Customer | `/customer/` | `riya@nearbuy.demo` / `NearBuy123!` |
+| Seller | `/seller/` | `owner@nearbuy.demo` / `Seller123!` |
+| Delivery Partner | `/runner/` | `rohan@nearbuy.demo` / `Runner123!` |
+| Fleet (sub-portal) | `/portal.html#/fleet/overview` | `arjun@nearbuy.demo` / `Fleet123!` |
+| Operations | `/admin/` or `#/ops/overview` | access code `NB-OPS-2026` |
+
+Sessions live in `sessionStorage` for the current tab and are cleared by *Sign out*, so a demo reviewer can walk all five portals one after another without one session ever unlocking the next. Registration (`/seller/register/`, `/runner/register/`) stays public — you register before you have an account.
+
 ### Registration and verification (simulated)
 
 | Journey | Route | What actually works |
@@ -49,7 +61,7 @@ What is *not* real: no SMS, no document upload, no identity provider, no bank ve
 
 ## NearBuy One
 
-**One portal for the whole neighbourhood.** Shop, sell, deliver, run a fleet and operate the network — five workspaces inside a single, consistent shell, sharing one live data model, at **`/portal.html`**.
+**One shared backend, five separately signed-in workspaces.** Shop, sell, deliver, run a fleet and operate the network — one consistent shell and one live data model, but each workspace opens only after its own sign-in, at **`/portal.html`**.
 
 ## Why this exists
 
@@ -61,7 +73,7 @@ NearBuy One rebuilds them as **one product**:
 | --- | --- | --- |
 | Shell | 5 different headers and sidebars | 1 rail + 1 top bar, identical on every surface |
 | Data | separate local-storage keys per portal | one shared store: orders, tasks, stock, payouts, incidents |
-| Navigation | page loads between portals | instant switching, deep-linkable URLs, ⌘K search |
+| Navigation | page loads between portals | deep-linkable URLs, ⌘K search scoped to the portal you are signed in to |
 | Flow | each portal showed its own fake data | a real loop: cart → shop → runner → ops → back to the customer |
 | Design | mixed spacing, radii and type scales | one design system, one 8-pt rhythm, one component set |
 
@@ -77,19 +89,21 @@ NearBuy One rebuilds them as **one product**:
 
 ## Follow one order around the loop
 
-1. **Shop** — add a product, open the cart, apply `LOCAL10`, place the order at checkout.
-2. **Sell** — the order appears instantly in *Orders*: accept it, mark it ready, then **Request runner**.
-3. **Deliver** — the request is waiting in *Delivery requests*: accept it, note arrival at the shop, verify the pickup OTP, start the route and verify the delivery OTP.
-4. **Shop** — the same order is now *Delivered*, with a full timeline.
-5. **Ops** — the task, its status changes and the sample earning are in the audit log; stock has gone down; the shop's payouts and the runner's earnings have updated.
+Every portal is signed in separately — that is the point — so the loop is walked by signing in as each one in turn. The data underneath is the same record throughout.
 
-Every screen in every workspace is looking at the same record.
+1. **Customer** — sign in as `riya@nearbuy.demo`, add a product, open the cart, apply `LOCAL10`, place the order. *Sign out.*
+2. **Seller** — sign in as `owner@nearbuy.demo`; the order is already in *Orders*. Accept it, mark it ready, then **Request runner** on *Delivery & pickup*. *Sign out.*
+3. **Delivery Partner** — sign in as `rohan@nearbuy.demo`; the request is waiting in *Delivery requests*. Accept it, note arrival at the shop, verify the pickup OTP, start the route, verify the delivery OTP. *Sign out.*
+4. **Customer** — sign in again: the order reads *Delivered* with the full timeline, and the runner's sample earning is on the seller's ledger.
+5. **Operations** — unlock with `NB-OPS-2026`: the task, every status change and the sample earning are in the audit log.
+
+Nothing carries a session across those steps: each one is a fresh sign-in for that portal only.
 
 ## The operations console is gated
 
-The ops workspace is not a fourth public portal. Any `#/ops/*` route renders a locked state — the operations module list, its counts and its data are all withheld, and the breadcrumb reads *Restricted access* — until the demo access code is entered. The unlock is stored in `sessionStorage` for that tab only, audited, and can be cleared again with the *Lock console* control.
+No workspace is a public portal. Any gated route withholds its module list, its counts, its data and its breadcrumb label until the matching sign-in happens; another portal's session opens nothing. `/admin/` is a noindex signpost to the operations gate, deliberately absent from the homepage, footer and portal cards, and operations still needs `NB-OPS-2026` on top of a session.
 
-The gate is not a trap: the rail, the top-bar workspace switcher, the launcher (`All workspaces`) and the mobile drawer stay live throughout, so Shop ⇄ Sell ⇄ Deliver ⇄ Fleet ⇄ Ops switching never breaks — only ops content waits for the code. `/admin/` is a noindex signpost to the same gate, deliberately absent from the homepage, footer and portal cards.
+This is a browser-only demonstration of the model, not a security boundary: the checks run in the client, so production still needs server-side sessions, per-role permission checks on every sensitive action, and MFA for administrative roles.
 
 ## Keyboard & shortcuts
 
@@ -98,7 +112,8 @@ The gate is not a trap: the rail, the top-bar workspace switcher, the launcher (
 | `⌘K` / `Ctrl K` | Search everything — workspaces, products, shops, orders |
 | `↑ ↓` then `↵` | Move through command results and open |
 | `Esc` | Close a dialog, palette or the mobile drawer |
-| `Alt 1…5` | Jump to Shop, Sell, Deliver, Fleet, Ops |
+
+There is deliberately no keyboard shortcut that jumps between portals — doing so would be a permission bypass, not a convenience.
 
 ## Demo data
 
@@ -109,11 +124,11 @@ All data is local sample data in `localStorage` (key `nearbuy.one.v2`). Nothing 
 - Runners: **Rohan Kumar** (walking), Meena Joshi (bicycle), Farhan Ali (bicycle)
 - Areas: Hauz Khas, Green Park, Saket · pricing bands from ₹10 to ₹25
 
-Reset everything from **All workspaces → Reset demo data**, or the rail footer.
+Reset everything from the rail footer’s *Reset demo data*, or from the account menu.
 
 ## Design system
 
-- **One shell** — a 256 px navy rail (identity, workspace switcher, grouped navigation, demo notice) and a 68 px translucent top bar (breadcrumb, workspace pills, ⌘K search, cart, notifications, identity).
+- **One shell** — a 256 px navy rail (identity, the portal you are signed in to, grouped navigation, demo notice) and a 68 px translucent top bar (breadcrumb, portal chip, ⌘K search, cart, notifications, identity). The rail never advertises another portal's tools.
 - **One accent per workspace** — marigold for Shop, green for Sell, blue for Deliver, violet for Fleet, teal for Ops. Everything else stays identical, so switching feels like moving rooms in the same building.
 - **One rhythm** — 18 px gutters, 18 px card radii, 8-pt spacing steps, a single KPI card, table, list row, empty state, status pill, modal and toast.
 - **Built to move** — hover lift on cards, staggered sparklines and bars, page-entry transitions, reduced-motion support.

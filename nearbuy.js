@@ -1,5 +1,5 @@
 /* ============================================================================
-   NearBuy One — one portal, five workspaces, one source of truth.
+   NearBuy One — five separately signed-in workspaces, one source of truth.
    Vanilla JS · no build step · all data stays in this browser.
    ========================================================================== */
 'use strict';
@@ -471,7 +471,7 @@ const SURFACES = {
 };
 
 const route = { surface: 'shop', view: 'home', id: null };
-const ui = { drawer: false, modal: null, palette: null, query: '', filters: {}, onboardError: '' };
+const ui = { drawer: false, modal: null, palette: null, query: '', filters: {}, onboardError: '', signInError: '' };
 
 function readRoute() {
   const raw = location.hash.replace(/^#\/?/, '');
@@ -511,6 +511,7 @@ function currentNav() {
 const EXTRA_TITLES = { shop: 'Shop details', product: 'Product', order: 'Order', checkout: 'Checkout', register: 'Register' };
 function viewTitle() {
   if (route.surface === 'ops' && !adminSession()) return 'Restricted access';
+  if (!portalOpen(route.surface) && !portalPublic(route.surface, route.view)) return 'Sign in';
   const nav = currentNav();
   if (nav) return nav.label;
   return EXTRA_TITLES[route.view] || 'Overview';
@@ -534,17 +535,14 @@ function personaFor(surface) {
     default: return { name: OPS_USER.name, sub: 'South Delhi ops desk', initials: OPS_USER.initials, avatar: 'sm' };
   }
 }
-function wsSwitch(active) {
-  return Object.entries(SURFACES).map(([key, s]) => `
-    <button data-act="switch" data-surface="${key}" class="${active === key ? 'active' : ''}" title="${s.label}" aria-label="Switch to ${s.label} workspace">
-      ${icon(s.icon)}<span>${s.label}</span>
-    </button>`).join('');
-}
 function railHtml() {
   const s = route.surface, meta = SURFACES[s], persona = personaFor(s);
-  const locked = s === 'ops' && !adminSession();
-  const nav = locked ? `<div class="rail__label">CONTROL TOWER</div>
-    <div class="rail__locked">${icon('lock')}<b>Console locked</b><small>Operations modules stay hidden until the demo access code is entered.</small></div>`
+  const locked = (s === 'ops' && !adminSession()) || (!portalOpen(s) && !portalPublic(s, route.view));
+  const lockCopy = s === 'ops'
+    ? ['CONTROL TOWER', 'Console locked', 'Operations modules stay hidden until the demo access code is entered.']
+    : ['THIS PORTAL', 'Sign-in required', `Sign in to the ${portalLabel(s)} portal to open its tools. Other portals stay closed.`];
+  const nav = locked ? `<div class="rail__label">${lockCopy[0]}</div>
+    <div class="rail__locked">${icon('lock')}<b>${lockCopy[1]}</b><small>${lockCopy[2]}</small></div>`
     : meta.nav.map((item) => {
     if (item.group) return `<div class="rail__label">${item.group}</div>`;
     const count = item.count ? item.count() : 0;
@@ -562,11 +560,10 @@ function railHtml() {
       <span class="persona-txt"><b>${esc(persona.name)}</b><small>${esc(persona.sub)}</small></span>
       ${icon('chevronDown', 'sm')}
     </button>
-    <div class="rail__label">WORKSPACES</div>
-    <div class="rail__ws">${wsSwitch(s)}</div>
+    <div class="rail__portal">${icon(meta.icon)}<span>${esc(meta.label)} workspace</span><small>${esc(portalLabel(s))} portal</small></div>
     <div class="rail__scroll">${nav}</div>
     <div class="rail__foot">
-      <button class="rail__link" data-act="launcher">${icon('layers')}<span>All workspaces</span></button>
+      <button class="rail__link" data-act="sign-out">${icon('logout')}<span>Sign out</span></button>
       <a class="rail__link" href="/classic.html">${icon('store')}<span>Classic storefront</span></a>
       <button class="rail__link" data-act="reset">${icon('refresh')}<span>Reset demo data</span></button>
       <div class="rail__badge"><b>Local demo.</b> Every order, task and payout is simulated in this browser. No real money or dispatch.</div>
@@ -576,16 +573,16 @@ function railHtml() {
 function areaLabel() { return state.area || 'Hauz Khas'; }
 function topbarHtml() {
   const meta = currentMeta(), persona = personaFor(route.surface);
-  const bellCount = route.surface === 'ops' && !adminSession() ? 0 : unreadFor(route.surface === 'shop' ? 'shop' : route.surface).length;
+  const gated = (route.surface === 'ops' && !adminSession()) || (!portalOpen(route.surface) && !portalPublic(route.surface, route.view));
+  const bellCount = gated ? 0 : unreadFor(route.surface === 'shop' ? 'shop' : route.surface).length;
   return `<header class="topbar">
     <button class="iconbtn topbar__menu" data-act="drawer" aria-label="Open navigation">${icon('menu')}</button>
     <div class="crumb">
       <span class="ws"><i></i>${esc(meta.label)}</span><span class="slash">/</span><strong>${esc(viewTitle())}</strong>
     </div>
-    <button class="pillbtn surface-select" data-act="launcher">${icon(meta.icon)}<span>${esc(meta.label)}</span>${icon('chevronDown', 'sm')}</button>
     <div class="topbar__spacer"></div>
     <div class="topbar__tools">
-      <div class="workspaces">${wsSwitch(route.surface)}</div>
+      <span class="pill pill--outline topbar__portal">${icon(meta.icon)} ${esc(portalLabel(route.surface))}</span>
       <button class="searchbtn" data-act="palette" aria-label="Search everything">${icon('search')}<span>Search everything</span><kbd>⌘K</kbd></button>
       ${route.surface === 'shop' ? `
         <button class="pillbtn hide-sm" data-act="area">${icon('pin')}<span>${esc(areaLabel())}</span>${icon('chevronDown', 'sm')}</button>
@@ -626,6 +623,7 @@ function renderOverlay() {
 function paletteIndex() {
   const items = [];
   Object.entries(SURFACES).forEach(([key, s]) => {
+    if (key !== route.surface) return;
     s.nav.filter((n) => n.view).forEach((n) => {
       if (['product', 'shop', 'order', 'checkout'].includes(n.view)) return;
       items.push({ group: `Go to ${s.label}`, label: n.label, sub: s.label, icon: n.icon, go: `${key}/${n.view}` });
@@ -1581,7 +1579,7 @@ function sellTeam() {
         ${card({ title: 'Roles in this demo', body: `<div class="grid grid--3">${[['Shop owner', 'Every workspace and setting.'], ['Shop manager', 'Orders, catalogue, delivery, returns.'], ['Inventory manager', 'Catalogue and stock only.']].map(([r, d]) => `<div class="mini-stat">${icon('lock')}<div><b>${r}</b><small>${d}</small></div></div>`).join('')}</div>` })}
       </div>
       <aside class="stack">
-        ${card({ title: 'Access rules', body: `<p class="small muted">Permissions in this demo mirror the real Seller Hub roles. Switch personas to see how the same portal adapts — the workspace switcher always stays in reach.</p><button class="btn btn--ghost btn--sm btn--block mt-10" data-act="launcher">${icon('layers')} Open workspace launcher</button>` })}
+        ${card({ title: 'Access rules', body: `<p class="small muted">Permissions in this demo mirror the real Seller Hub roles. This Seller Hub session opens seller tools only — customer, partner, fleet and operations portals each sign in separately.</p><button class="btn btn--ghost btn--sm btn--block mt-10" data-act="launcher">${icon('layers')} Open workspace launcher</button>` })}
         ${card({ body: `<div class="notice notice--info">${icon('shield')}<span>Team access is demo-only. No invitations, passwords or identity checks are real.</span></div>` })}
       </aside>
     </div>
@@ -2320,31 +2318,38 @@ function modalHead(title, sub = '') {
   return `<div class="modal__head"><div><h2>${title}</h2>${sub ? `<p>${sub}</p>` : ''}</div><button class="modal__close" data-act="close" aria-label="Close">${icon('x')}</button></div>`;
 }
 function openLauncher() {
-  const rows = Object.entries(SURFACES).map(([key, s]) => `<button class="list-row list-row--link" data-act="switch" data-surface="${key}" style="border-radius:12px;border:1px solid ${route.surface === key ? 'var(--accent)' : 'var(--line)'};margin-bottom:8px;background:${route.surface === key ? 'var(--accent-soft)' : '#fff'};width:100%;text-align:left">
-    <span class="kpi__icon">${icon(s.icon)}</span>
-    <span class="list-row__main"><b>${s.label} workspace</b><small>${s.blurb}</small></span>
-    <span class="list-row__end">${route.surface === key ? pill('You are here', 'green') : icon('chevronRight', 'chev')}</span>
-  </button>`).join('');
-  openModal(`${modalHead('One portal, five workspaces', 'Move between them at any time — the data follows you.')}<div class="modal__body"><div class="stack-sm">${rows}</div><div class="notice notice--info mt-14">${icon('layers')}<span>Everything is one local demo. Orders, tasks, earnings and incidents are shared across all five workspaces.</span></div></div>`);
+  const rows = Object.entries(SURFACES).map(([key, s]) => {
+    const active = key === route.surface;
+    const label = key === 'ops' ? 'Operations' : (PORTALS[key] || {}).label || s.label;
+    return `<a class="list-row list-row--link" href="${portalPath(key)}" style="border-radius:12px;border:1px solid ${active ? 'var(--accent)' : 'var(--line)'};margin-bottom:8px;background:${active ? 'var(--accent-soft)' : '#fff'}">
+      <span class="kpi__icon">${icon(s.icon)}</span>
+      <span class="list-row__main"><b>${esc(label)} portal</b><small>${esc(s.blurb)}</small></span>
+      <span class="list-row__end">${active ? pill('You are here', 'green') : icon('arrowUpRight', 'chev')}</span>
+    </a>`;
+  }).join('');
+  openModal(`${modalHead('Portals are separate on purpose', 'Each one has its own sign-in and its own permissions.')}
+    <div class="modal__body"><div class="stack-sm">${rows}</div>
+    <div class="notice notice--info mt-14">${icon('lock')}<span>Opening another portal leaves this session behind and asks for that portal's credentials. A customer sign-in never grants seller, partner, fleet or operations access.</span></div></div>
+    <div class="modal__foot"><a class="btn btn--ghost btn--sm" href="/">Back to the public site</a><button class="btn btn--primary btn--sm" data-act="close">Close</button></div>`);
 }
 function openAccount() {
-  const rows = Object.entries(SURFACES).map(([key, s]) => {
-    const p = personaFor(key);
-    return `<button class="list-row list-row--link" data-act="switch" data-surface="${key}" style="width:100%;text-align:left;border-radius:10px">
-      <span class="ava ava--sm ava--${p.avatar}">${p.initials}</span>
-      <span class="list-row__main"><b>${esc(p.name)}</b><small>${s.label} · ${esc(p.sub)}</small></span>
-      <span class="list-row__end">${route.surface === key ? pill('Active', 'green') : icon('chevronRight', 'chev')}</span>
-    </button>`;
-  }).join('');
-  openModal(`${modalHead('Accounts in this demo', 'Each workspace has its own identity — switch in one tap.')}
-    <div class="modal__body"><div class="stack-sm">${rows}</div>
-    <hr class="hr" />
-    <div class="stack-sm">
-      <button class="btn btn--ghost btn--sm btn--block" data-act="palette">${icon('command')} Search everything · ⌘K</button>
-      <a class="btn btn--ghost btn--sm btn--block" href="/classic.html">${icon('store')} Open the classic storefront</a>
-      <button class="btn btn--danger btn--sm btn--block" data-act="reset">${icon('refresh')} Reset demo data</button>
-    </div>
-    <p class="hint mt-10">All identities, orders and earnings are sample data stored in this browser.</p></div>`);
+  const persona = personaFor(route.surface);
+  const portal = portalLabel(route.surface);
+  openModal(`${modalHead(`${portal} account`, 'Signed in to this portal only.')}
+    <div class="modal__body">
+      <div class="row gap-10" style="padding-bottom:14px;border-bottom:1px solid var(--line-soft)">
+        <span class="ava ava--${persona.avatar}">${persona.initials}</span>
+        <div class="flex1"><b>${esc(persona.name)}</b><div class="tiny muted">${esc(persona.sub)} · ${esc(portal)} portal</div></div>
+        ${pill('Signed in', 'green', true)}
+      </div>
+      <div class="stack-sm mt-14">
+        <button class="btn btn--ghost btn--sm btn--block" data-act="palette">${icon('command')} Search everything · ⌘K</button>
+        <a class="btn btn--ghost btn--sm btn--block" href="/help/">${icon('help')} Help centre</a>
+        <button class="btn btn--ghost btn--sm btn--block" data-act="reset">${icon('refresh')} Reset demo data</button>
+        <button class="btn btn--danger btn--sm btn--block" data-act="sign-out">${icon('logout')} Sign out of this portal</button>
+      </div>
+      <div class="notice notice--plain mt-10">${icon('lock')}<span>Other NearBuy portals (${Object.values(PORTALS).map((x) => x.label).join(', ')}, Operations) sign in separately. This session opens none of them.</span></div>
+    </div>`);
 }
 function openInbox() {
   const audience = route.surface === 'shop' ? 'shop' : route.surface;
@@ -2496,7 +2501,19 @@ function openAreaForm(id) {
 function handleAction(act, ds, el, event) {
   switch (act) {
     case 'nav': go(ds.surface, ds.view, ds.id || null); break;
-    case 'switch': closeModal(); go(ds.surface, ds.view || 'home'); break;
+    case 'switch': crossPortalNotice(ds.surface); break;
+    case 'sign-out': signOutPortal(); break;
+    case 'fill-demo': {
+      const p = PORTALS[ds.surface];
+      const form = el && el.closest('.portal-gate');
+      if (!p || !form) break;
+      const email = form.querySelector('[name="email"]');
+      const pass = form.querySelector('[name="password"]');
+      if (email) email.value = p.email;
+      if (pass) pass.value = p.pass;
+      toast('Demo credentials filled. Press sign in.', 'key');
+      break;
+    }
     case 'drawer': ui.drawer = !ui.drawer; syncDrawer(); break;
     case 'close': closeModal(); break;
     case 'backdrop': if (event.target === el) closeModal(); break;
@@ -2840,6 +2857,38 @@ function setAdminSession(role) {
 function clearAdminSession() {
   try { sessionStorage.removeItem(ADMIN_SESSION_KEY); } catch { /* ignore */ }
 }
+/* ---------------------------- portal identities ---------------------------- */
+/* One shell, five workspaces, five separate sign-ins. A customer session never
+   opens seller, partner, fleet or operations tools. Browser-only simulation. */
+const PORTAL_KEY = 'nearbuy.portal.session.v1';
+const PORTALS = {
+  shop: { label: 'Customer', icon: 'bag', email: 'riya@nearbuy.demo', pass: 'NearBuy123!', persona: 'Riya Sharma', blurb: 'Shop from shops around you' },
+  sell: { label: 'Seller', icon: 'store', email: 'owner@nearbuy.demo', pass: 'Seller123!', persona: 'Green Basket Market', blurb: 'Run your shop, catalogue and orders' },
+  deliver: { label: 'Delivery Partner', icon: 'truck', email: 'rohan@nearbuy.demo', pass: 'Runner123!', persona: 'Rohan Kumar', blurb: 'Accept nearby deliveries' },
+  fleet: { label: 'Fleet', icon: 'layers', email: 'arjun@nearbuy.demo', pass: 'Fleet123!', persona: 'Arjun Rao', blurb: 'Manage a delivery fleet' }
+};
+const PUBLIC_VIEWS = { sell: ['register'], deliver: ['register'] };
+const DEMO_PASSWORDS = Object.fromEntries(Object.entries(PORTALS).map(([k, v]) => [k, v.pass]));
+
+function portalSession() {
+  try { return JSON.parse(sessionStorage.getItem(PORTAL_KEY) || 'null'); } catch { return null; }
+}
+function setPortalSession(surface) {
+  try { sessionStorage.setItem(PORTAL_KEY, JSON.stringify({ surface, at: Date.now() })); } catch { /* private mode */ }
+}
+function clearPortalSession() {
+  try { sessionStorage.removeItem(PORTAL_KEY); } catch { /* ignore */ }
+}
+function portalOpen(surface) {
+  if (surface === 'ops') return !!adminSession();
+  const session = portalSession();
+  return !!session && session.surface === surface;
+}
+function portalPublic(surface, view) {
+  return (PUBLIC_VIEWS[surface] || []).includes(view);
+}
+function portalLabel(surface) { return (PORTALS[surface] || { label: 'NearBuy' }).label; }
+
 function adminLockPage() {
   return `<div class="page">
     <div class="admin-lock card">
@@ -2864,6 +2913,65 @@ function adminLockPage() {
 }
 
 /* --------------------------------- pieces ---------------------------------- */
+function portalPath(surface) {
+  return { shop: '/customer/', sell: '/seller/', deliver: '/runner/', fleet: '/portal.html#/fleet/overview', ops: '/admin/' }[surface] || '/';
+}
+
+function portalSignInPage(surface) {
+  const p = PORTALS[surface] || PORTALS.shop;
+  const meta = SURFACES[surface];
+  return `<div class="page">
+    <div class="portal-gate card">
+      <span class="portal-gate__icon">${icon(p.icon)}</span>
+      <span class="kicker"><i></i>${esc(p.label.toUpperCase())} PORTAL</span>
+      <h1>Sign in to the ${esc(p.label)} portal</h1>
+      <p class="small muted">${esc(p.blurb)}. Every NearBuy portal signs in separately and carries its own permissions, so a customer session can never open seller, partner or operations tools.</p>
+      ${ui.signInError ? `<div class="notice">${icon('alert')}<span>${esc(ui.signInError)}</span></div>` : ''}
+      <form id="portalSignInForm" class="form-grid">
+        <input type="hidden" name="surface" value="${esc(surface)}" />
+        <label class="field"><span>Email</span><input class="input" type="email" name="email" autocomplete="username" placeholder="you@example.com" required /></label>
+        <label class="field"><span>Password</span><input class="input" type="password" name="password" autocomplete="current-password" placeholder="Your password" required /></label>
+        <button class="btn btn--primary btn--block" type="submit">${icon('lock')} Sign in to ${esc(p.label)}</button>
+      </form>
+      <button class="btn btn--ghost btn--block mt-8" type="button" data-act="fill-demo" data-surface="${esc(surface)}">Use the demo credentials</button>
+      <div class="notice notice--plain">${icon('shield')}<span>Demo sign-in: <b>${esc(p.email)}</b> / <b>${esc(p.pass)}</b>. Authentication is simulated in this browser — production needs a real identity provider, server-side sessions and per-role permission checks.</span></div>
+      <div class="portal-gate__links">
+        <a class="btn btn--ghost btn--sm" href="/">${icon('home')} Public site</a>
+        ${surface === 'sell' || surface === 'deliver'
+          ? `<a class="btn btn--ghost btn--sm" href="/${surface === 'sell' ? 'seller' : 'runner'}/register/">${icon('plus')} Register instead</a>`
+          : ''}
+        ${surface === 'shop' ? `<a class="btn btn--ghost btn--sm" href="/help/">${icon('help')} Need help?</a>` : ''}
+      </div>
+      <p class="tiny muted mt-10">${esc(meta.blurb)} · ${esc(p.persona)} is the demo identity for this portal.</p>
+    </div>
+  </div>`;
+}
+
+function crossPortalNotice(surface) {
+  closeModal();
+  if (surface === route.surface) { go(surface, 'overview'); return; }
+  const p = PORTALS[surface] || { label: surface === 'ops' ? 'Operations' : 'NearBuy', blurb: '' };
+  openModal(`${modalHead('That belongs to another portal', `This action lives in the ${esc(p.label)} portal.`)}
+    <div class="modal__body">
+      <p class="small muted">${esc(p.blurb || 'Each portal has its own sign-in and its own permissions.')} Switching portals means signing in there — it is never a click inside this one.</p>
+      <div class="notice notice--info mt-14">${icon('lock')}<span>A customer session does not grant seller, partner, fleet or operations access, and nothing here carries that session across.</span></div>
+    </div>
+    <div class="modal__foot">
+      <a class="btn btn--primary btn--sm" href="${portalPath(surface)}">${icon('arrowUpRight', 'sm')} Open the ${esc(p.label)} portal</a>
+      <button class="btn btn--ghost btn--sm" data-act="close">Stay in ${esc(portalLabel(route.surface))}</button>
+    </div>`);
+}
+
+function signOutPortal() {
+  const surface = route.surface;
+  clearPortalSession();
+  clearAdminSession();
+  ui.signInError = '';
+  closeModal();
+  paint();
+  toast(`Signed out of the ${portalLabel(surface)} portal.`, 'logout');
+}
+
 function obNotice(text, tone = 'info') {
   return `<div class="notice ${tone === 'warn' ? '' : 'notice--' + tone}">${icon(tone === 'warn' ? 'alert' : 'shield')}<span>${text}</span></div>`;
 }
@@ -3480,6 +3588,7 @@ function opsVerifications() {
 
 function pageHtml() {
   if (route.surface === 'ops' && !adminSession()) return adminLockPage();
+  if (!portalOpen(route.surface) && !portalPublic(route.surface, route.view)) return portalSignInPage(route.surface);
   switch (route.surface) {
     case 'sell': return sellPage();
     case 'deliver': return deliverPage();
@@ -3512,7 +3621,7 @@ function paint() {
   lastRouteKey = key;
   const y = window.scrollY;
   document.body.dataset.surface = route.surface;
-  const opsLocked = route.surface === 'ops' && !adminSession();
+  const opsLocked = (route.surface === 'ops' && !adminSession()) || (!portalOpen(route.surface) && !portalPublic(route.surface, route.view));
   document.body.classList.toggle('ops-locked', opsLocked);
   $('#app').innerHTML = `${railHtml()}<div class="scrim ${ui.drawer ? 'show' : ''}" id="scrim" data-act="drawer"></div>
     <div class="main">${topbarHtml()}<main class="content"><div id="page">${pageHtml()}</div></main></div>${opsLocked ? '' : mobilebarHtml()}`;
@@ -3628,6 +3737,27 @@ function handleSubmit(form, event) {
       save(); paint(); toast('Sample report saved. Ops can see it now.', 'shield');
       break;
     }
+    case 'portalSignInForm': {
+      const surface = String(fd.get('surface') || '');
+      const p = PORTALS[surface];
+      const email = String(fd.get('email') || '').trim().toLowerCase();
+      const pass = String(fd.get('password') || '');
+      if (!p) break;
+      if (email !== p.email || pass !== p.pass) {
+        ui.signInError = `Those details do not match the ${p.label} portal. Each portal has its own account — a customer login cannot open seller, partner or operations tools.`;
+        paint();
+        toast('Sign-in failed for this portal.', 'alert');
+        break;
+      }
+      ui.signInError = '';
+      setPortalSession(surface);
+      audit('Portal sign-in', `${p.label} portal · ${p.persona}`, 'Demo auth');
+      save();
+      closeModal();
+      paint();
+      toast(`Signed in to the ${p.label} portal.`, 'checkCircle');
+      break;
+    }
     case 'adminUnlockForm': {
       const code = String(fd.get('code') || '').trim().toUpperCase();
       if (code !== ADMIN_CODE) {
@@ -3703,12 +3833,6 @@ document.addEventListener('keydown', (e) => {
   const mod = e.metaKey || e.ctrlKey;
   if (mod && e.key.toLowerCase() === 'k') { e.preventDefault(); ui.palette ? closeModal() : openPalette(); return; }
   if (e.key === 'Escape') { if (ui.modal || ui.palette) closeModal(); else if (ui.drawer) { ui.drawer = false; syncDrawer(); } return; }
-  if (e.altKey && /^[1-5]$/.test(e.key)) {
-    e.preventDefault();
-    const key = Object.keys(SURFACES)[Number(e.key) - 1];
-    if (key) go(key, route.surface === key ? route.view : SURFACES[key].nav.find((n) => n.view)?.view || 'home');
-    return;
-  }
   if (ui.palette) {
     const items = paletteMatches();
     if (e.key === 'ArrowDown') { e.preventDefault(); ui.palette.idx = clamp((ui.palette.idx || 0) + 1, 0, items.length - 1); renderOverlay(); }
