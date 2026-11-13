@@ -166,6 +166,8 @@ ul, ol { padding: 0; list-style: none; }
 .nav__links { display: flex; align-items: center; gap: 24px; margin-left: auto; }
 .nav__links a { font-size: 13.2px; font-weight: 500; color: #c3d3ec; transition: color .2s var(--ease); }
 .nav__links a:hover { color: #fff; }
+.nav__links a[aria-current="page"] { color: #fff; }
+.nav__links a[aria-current="page"]::after { content: ''; display: block; height: 2px; margin-top: 4px; border-radius: 2px; background: linear-gradient(90deg, #ff9a3d, rgba(255, 154, 61, 0)); }
 .nav__actions { display: flex; align-items: center; gap: 8px; }
 .nav__portal-btn { border-color: rgba(255, 255, 255, .2); color: #eaf1ff; }
 .nav__toggle { display: none; width: 38px; height: 38px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .18); color: #fff; place-items: center; }
@@ -351,8 +353,12 @@ section[id] { scroll-margin-top: 86px; }
 .portal-card__art img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 44%; transform: scale(1.03); transition: transform .6s var(--ease); }
 .portal-card--customer .portal-card__art img { object-position: 50% 40%; }
 .portal-card:hover .portal-card__art img { transform: scale(1.08); }
+.portal-card__art::before {
+  content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: radial-gradient(125% 105% at 50% 42%, transparent 42%, rgba(10, 23, 48, .62) 100%);
+}
 .portal-card__art::after {
-  content: ''; position: absolute; inset: auto 0 0; height: 74px;
+  content: ''; position: absolute; inset: auto 0 0; height: 74px; z-index: 1;
   background: linear-gradient(180deg, transparent, rgba(11, 25, 48, .92) 72%, #0b1930);
 }
 .portal-card__tag {
@@ -602,7 +608,7 @@ section[id] { scroll-margin-top: 86px; }
 .partner-card__art { position: relative; min-height: 340px; overflow: hidden; background: #0a1730; }
 .partner-card__art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .6s var(--ease); }
 .partner-card:hover .partner-card__art img { transform: scale(1.05); }
-.partner-card__art::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent 70%, rgba(8, 20, 40, .18)); }
+.partner-card__art::after { content: ''; position: absolute; inset: 0; z-index: 1; background: radial-gradient(130% 110% at 50% 45%, transparent 46%, rgba(8, 20, 40, .5) 100%), linear-gradient(90deg, transparent 70%, rgba(8, 20, 40, .22)); }
 .partner-card__art--green { background: radial-gradient(80% 70% at 50% 40%, #14365a, #081428); }
 .partner-card__art--orange { background: radial-gradient(80% 70% at 50% 40%, #1a3455, #081428); }
 .partner-card__body { display: flex; flex-direction: column; gap: 11px; padding: 26px 24px; }
@@ -788,7 +794,9 @@ html[data-motion="reduced"] [data-reveal] { opacity: 1 !important; transform: no
 
 /* ---------- responsive ---------- */
 @media (max-width: 1120px) {
-  .nav__links { gap: 18px; }
+  .nav__links { gap: 14px; }
+  .nav__links a { font-size: 12.6px; }
+  .nav__portal-btn { padding: 9px 12px; }
   .hero__inner { grid-template-columns: minmax(0, 1fr) minmax(0, .9fr); gap: 26px; }
   .scene { min-height: 400px; }
   .portal-card__art { height: 190px; }
