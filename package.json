@@ -1,7 +1,8 @@
 {
-  "name": "nearbuy-neighbourhood",
-  "version": "1.0.0",
+  "name": "nearbuy-one",
+  "version": "2.0.0",
   "private": true,
+  "description": "NearBuy One — a unified neighbourhood commerce portal with Shop, Sell, Deliver, Fleet and Ops workspaces.",
   "scripts": {
     "start": "python3 -m http.server 4173 --bind 0.0.0.0"
   }

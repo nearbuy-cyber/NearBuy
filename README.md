@@ -1,53 +1,87 @@
-# NearBuy Marketplace & Seller Hub Demo
+# NearBuy One
 
-A responsive, browser-only NearBuy customer marketplace and separate seller portal prototype. Run both locally with:
+**One portal for the whole neighbourhood.** Shop, sell, deliver, run a fleet and operate the network — five workspaces inside a single, consistent shell, sharing one live data model.
 
 ```bash
 npm start
 ```
 
-Then open `http://localhost:4173`.
+Then open **http://localhost:4173** — no build step, no dependencies, no backend.
 
-## Demo customer accounts
+---
 
-All accounts use the password **`NearBuy123!`**. You can sign in with any one-click demo profile in the sign-in dialog or enter the credentials manually.
+## Why this exists
 
-| Customer | Email | Sample area |
+The original prototype was five separate sites: a customer marketplace, a Seller Hub, a Runner app, a business/fleet portal and a delivery-ops console. Each had its own header, its own navigation and its own copy of the data, so an order could never really be followed from cart to doorstep.
+
+NearBuy One rebuilds them as **one product**:
+
+| | Before | Now |
 | --- | --- | --- |
-| Riya Sharma | `riya@nearbuy.demo` | Hauz Khas |
-| Aarav Mehta | `aarav@nearbuy.demo` | Saket |
-| Sana Khan | `sana@nearbuy.demo` | Greater Kailash |
+| Shell | 5 different headers and sidebars | 1 rail + 1 top bar, identical on every surface |
+| Data | separate local-storage keys per portal | one shared store: orders, tasks, stock, payouts, incidents |
+| Navigation | page loads between portals | instant switching, deep-linkable URLs, ⌘K search |
+| Flow | each portal showed its own fake data | a real loop: cart → shop → runner → ops → back to the customer |
+| Design | mixed spacing, radii and type scales | one design system, one 8-pt rhythm, one component set |
 
-## Included demo flows
+## The five workspaces
 
-- Browse local shops, categories and sample products; search by product, shop or product ID.
-- Select a neighbourhood, open shop/product details, and save products.
-- Add products to a cart, use `LOCAL10`, choose delivery or pickup, and create a sample order.
-- Manage profile and saved delivery addresses; view payments and order notifications.
-- Follow local shops, request a demo return/refund, save private product reviews, inspect order progress, cancel an eligible order, or reorder.
-- Filter and sort product listings; shop listings can be filtered and sorted too.
-- Saved items, cart, selected area, addresses and demo-created account data persist in the browser using local storage.
-
-## Seller Hub demo
-
-Open [`/seller.html`](http://localhost:4173/seller.html) or use **Open Seller Hub demo** in the customer-site footer. Seller demo accounts share the password **`Seller123!`**:
-
-| Demo teammate | Email | Role |
+| Workspace | Who | What you can do |
 | --- | --- | --- |
-| Riya Sharma | `owner@nearbuy.demo` | Shop owner |
-| Aarav Mehta | `manager@nearbuy.demo` | Shop manager |
-| Sana Khan | `inventory@nearbuy.demo` | Inventory manager |
+| **Shop** | Neighbour | Discover, filter, save, cart, checkout, track orders, manage account, follow shops |
+| **Sell** | Green Basket Market | Accept orders, mark ready, request runners, edit catalogue & stock, promotions, payouts, insights, settings, team |
+| **Deliver** | Runner | Go online, accept/pass requests, shop arrival, pickup OTP, route, delivery OTP, earnings, preferences, safety reports |
+| **Fleet** | Neighbourhood fleet lead | Team availability, work allocation, auto-match, reports, safety commitments |
+| **Ops** | South Delhi ops desk | Control tower, dispatch queue, partner eligibility, service areas, pricing bands, incidents, audit log |
 
-The responsive Seller Hub includes an overview, order queue and simulated fulfilment statuses, editable catalogue and stock counts, returns, sample earnings/settlements, promotions, insights, shop settings, support, team access, and notifications. In **Delivery & pickup**, a prepared sample order can be routed to the Runner demo, recorded for the shop’s own delivery staff, or prepared for customer pickup.
+## Follow one order around the loop
 
-## NearBuy Runner & delivery network demos
+1. **Shop** — add a product, open the cart, apply `LOCAL10`, place the order at checkout.
+2. **Sell** — the order appears instantly in *Orders*: accept it, mark it ready, then **Request runner**.
+3. **Deliver** — the request is waiting in *Delivery requests*: accept it, note arrival at the shop, verify the pickup OTP, start the route and verify the delivery OTP.
+4. **Shop** — the same order is now *Delivered*, with a full timeline.
+5. **Ops** — the task, its status changes and the sample earning are in the audit log; stock has gone down; the shop's payouts and the runner's earnings have updated.
 
-- [`/partner.html`](http://localhost:4173/partner.html) — public partner landing and responsive Runner partner app: adult age-gate explainer, online/offline control, flexible distance/category preferences, sample request cards, accept/pass, pickup and customer OTP workflow, task history, earnings, privacy, safety and local support.
-- [`/business.html`](http://localhost:4173/business.html) — neighbourhood business/fleet portal: roster of adult demo profiles, simulated work allocation and reporting.
-- [`/delivery-admin.html`](http://localhost:4173/delivery-admin.html) — operations control-tower demo: sample partner eligibility records, manual dispatch to online adult demo profiles, service-area and proposed pricing controls, incident log and local audit trail.
+Every screen in every workspace is looking at the same record.
 
-The Seller Hub, Runner, Business and Admin demos share delivery tasks through browser local storage. A Seller Hub Runner request appears in the Runner queue; simulated partner acceptance, pickup and delivery statuses can then be seen back in Seller Hub. All partner accounts are one-click **adult demo profiles** (ages 21–31); there are no real credentials or applications. The age eligibility check rejects anyone under 18 for this proposed demo launch policy.
+## Keyboard & shortcuts
 
-**Prototype notice:** all sign-in, tasks, matching, team access, KYC states, pricing, earnings, incident reports and settlement views are simulated and stored in the browser. There is no backend, identity/business verification, secure OTP, live inventory/location sync, masked calling, real runner dispatch, emergency response, payment processing, UPI/bank account, insurance, or actual payout. Maps and distances are schematic. Sample earnings are not promised rates. No personal or sensitive information should be entered. The proposed adult-only delivery policy and any real worker/business arrangement require qualified Indian legal review; this demo does not determine legal eligibility.
+| Keys | Action |
+| --- | --- |
+| `⌘K` / `Ctrl K` | Search everything — workspaces, products, shops, orders |
+| `↑ ↓` then `↵` | Move through command results and open |
+| `Esc` | Close a dialog, palette or the mobile drawer |
+| `Alt 1…5` | Jump to Shop, Sell, Deliver, Fleet, Ops |
 
-**Customer prototype notice:** checkout does not charge a payment method, contact a shop, or dispatch a runner. Customer data is sample/demo data only; do not enter real sensitive information.
+## Demo data
+
+All data is local sample data in `localStorage` (key `nearbuy.one.v2`). Nothing is sent anywhere.
+
+- Customer: **Riya Sharma** — Hauz Khas, South Delhi
+- Shop: **Green Basket Market** — owner Riya, manager Aarav, inventory Sana
+- Runners: **Rohan Kumar** (walking), Meena Joshi (bicycle), Farhan Ali (bicycle)
+- Areas: Hauz Khas, Green Park, Saket · pricing bands from ₹10 to ₹25
+
+Reset everything from **All workspaces → Reset demo data**, or the rail footer.
+
+## Design system
+
+- **One shell** — a 256 px navy rail (identity, workspace switcher, grouped navigation, demo notice) and a 68 px translucent top bar (breadcrumb, workspace pills, ⌘K search, cart, notifications, identity).
+- **One accent per workspace** — marigold for Shop, green for Sell, blue for Deliver, violet for Fleet, teal for Ops. Everything else stays identical, so switching feels like moving rooms in the same building.
+- **One rhythm** — 18 px gutters, 18 px card radii, 8-pt spacing steps, a single KPI card, table, list row, empty state, status pill, modal and toast.
+- **Built to move** — hover lift on cards, staggered sparklines and bars, page-entry transitions, reduced-motion support.
+- **Responsive by construction** — 5-up workspace pills collapse to icons, then to a switcher; the rail becomes a drawer; tables scroll; the mobile bottom bar mirrors each workspace's most-used views.
+
+## Files
+
+```
+index.html        the unified portal shell
+nearbuy.css       design system + every workspace style
+nearbuy.js        data, store, router, five workspaces, flows, modals
+classic.html      the previous standalone customer storefront (kept for reference)
+seller.html · partner.html · business.html · delivery-admin.html
+                  the previous standalone portals (legacy)
+public/           brand assets
+```
+
+> **Prototype notice.** This is a simulated demo. Checkout charges nothing, no shop is contacted, no runner is dispatched, no OTP is sent, no payout or bank account exists, and no personal or sensitive information should be entered. Maps, distances and pricing are schematic. The proposed adult-only delivery policy and any real worker or business arrangement require qualified Indian legal review; this demo does not determine legal eligibility.
