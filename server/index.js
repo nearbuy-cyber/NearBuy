@@ -13,6 +13,7 @@ require('./routes/finance');
 require('./routes/growth');
 require('./routes/ops');
 const { seedIfNeeded } = require('./seed');
+const delivery = require('./delivery');
 
 const PORT = Number(process.env.PORT || 4173);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -30,6 +31,10 @@ const MIME = {
 };
 const BLOCKED_TOP = new Set(['server', 'data', 'tests', 'node_modules', 'package.json', 'package-lock.json']);
 const SPA_CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'";
+
+const DELIVERY_APPS = new Set(['runner', 'control-tower', 'fleet', 'track', 'delivery']);
+// Geolocation is allowed for the partner app only through the browser's own permission prompt.
+const DELIVERY_CSP = `${SPA_CSP}; frame-ancestors *`;
 
 function baseHeaders(extra) {
   return { 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', ...extra };
@@ -92,7 +97,7 @@ async function handleApi(req, res, url) {
 
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       // CSRF defence: browsers cannot attach this header cross-site without a CORS preflight, which this server never grants.
-      if (req.headers['x-nearbuy-request'] !== '1' || !sameOrigin(req)) throw new HttpError(403, 'Request blocked: it did not come from the Seller Hub.');
+      if (req.headers['x-nearbuy-request'] !== '1' || !sameOrigin(req)) throw new HttpError(403, 'Request blocked: it did not come from this site.');
       const raw = await readBody(req, r.options.raw ? (r.options.limit || 3 * 1024 * 1024) : 1024 * 1024);
       if (r.options.raw) ctx.raw = raw;
       else if (raw.length) {
@@ -102,7 +107,10 @@ async function handleApi(req, res, url) {
       }
     }
 
-    if (r.options.auth !== 'public' && r.options.auth !== 'ops') {
+    if (r.options.guard) {
+      // Delivery-network portals (partner, fleet, control tower) bring their own session and role checks.
+      await r.options.guard(ctx);
+    } else if (r.options.auth !== 'public' && r.options.auth !== 'ops') {
       const auth = resolveSession(req);
       if (!auth) throw new HttpError(401, 'Please sign in to continue.', { code: 'unauthenticated' });
       ctx.auth = auth;
@@ -168,25 +176,30 @@ function handleStatic(req, res, url) {
   }
   const file = path.join(ROOT, ...segments);
   if (!file.startsWith(ROOT)) { notFoundPage(res); return; }
+  // Delivery-network apps (partner app, control tower, fleet portal, customer tracking) run under the same strict policy.
+  const csp = DELIVERY_APPS.has(segments[0]) ? { 'Content-Security-Policy': DELIVERY_CSP } : {};
   fs.stat(file, (err, stat) => {
     if (!err && stat.isDirectory()) {
       if (!pathname.endsWith('/')) { res.writeHead(301, { Location: `${pathname}/${url.search}` }); res.end(); return; }
-      sendFile(res, path.join(file, 'index.html'), {}, req.method);
+      sendFile(res, path.join(file, 'index.html'), csp, req.method);
       return;
     }
-    sendFile(res, file, {}, req.method);
+    sendFile(res, file, csp, req.method);
   });
 }
 
 const server = http.createServer((req, res) => {
   let url;
   try { url = new URL(req.url, 'http://localhost'); } catch { res.writeHead(400); res.end(); return; }
-  if (url.pathname.startsWith('/api/')) handleApi(req, res, url);
+  if (url.pathname === '/api/realtime') delivery.handleRealtime(req, res, url);
+  else if (url.pathname.startsWith('/api/')) handleApi(req, res, url);
   else handleStatic(req, res, url);
 });
 
 function start(port = PORT) {
   seedIfNeeded();
+  delivery.seedDelivery();
+  delivery.startBackground();
   return new Promise((resolve) => {
     server.listen(port, HOST, () => {
       const actual = server.address().port;

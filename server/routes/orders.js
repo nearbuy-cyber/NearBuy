@@ -137,6 +137,10 @@ function allowedActions(order, shipment, canWrite) {
   return actions;
 }
 
+function networkDelivery(orderId) {
+  const d = get("SELECT code, status FROM deliveries WHERE order_id = ? AND kind = 'forward' AND status != 'cancelled'", orderId);
+  return d ? { code: d.code, status: d.status, status_label: require('../delivery/core').label(d.status) } : null;
+}
 function orderDetail(ctx, order) {
   const sellerId = ctx.sellerId;
   const items = orderItems(sellerId, order.id);
@@ -155,10 +159,11 @@ function orderDetail(ctx, order) {
     dispatch_by: order.dispatch_by, stock_state: order.stock_state,
     cancellation: order.status === 'cancelled' ? { reason: order.cancel_reason, by: order.cancelled_by, at: order.cancelled_at } : null,
     shipment: shipment ? shipmentView(sellerId, shipment, false) : null,
+    network_delivery: networkDelivery(order.id),
     timeline: all('SELECT status, title, note, actor, created_at FROM order_events WHERE order_id = ? AND seller_id = ? ORDER BY id', order.id, sellerId),
     returns: all('SELECT code, status, refund_status, requested_at FROM returns WHERE order_id = ? AND seller_id = ?', order.id, sellerId),
     fees_estimate: ctx.can('payments.read') ? feeBreakdown(sellerId, order) : null,
-    actions: allowedActions(order, shipment, ctx.can('orders.write')),
+    actions: allowedActions(order, shipment, ctx.can('orders.write')).filter((a) => !(NETWORK_ONLY.includes(a.key) && networkDelivery(order.id))),
     cancel_reasons: CANCEL_REASONS,
     documents: { invoice: order.status !== 'new' && order.status !== 'cancelled', label: Boolean(shipment) && order.status !== 'cancelled' },
   };
@@ -196,7 +201,19 @@ function setShipmentStatus(ctx, shipment, status, title, note) {
   addShipmentEvent(ctx.sellerId, shipment.id, status, title, note, ctx.user.name);
 }
 
+// Orders carried by the delivery network are handed over and delivered through verified steps in the partner app,
+// so the manual shortcuts below are closed to the seller for those orders.
+const NETWORK_ONLY = ['dispatch', 'deliver', 'fail', 'reattempt', 'rto'];
 function applyOrderAction(ctx, order, action, body) {
+  const engine = require('../delivery/engine'); // lazy: the delivery engine depends on this module
+  if (!ctx.system && NETWORK_ONLY.includes(action) && engine.hasNetworkDelivery(order.id)) {
+    throw conflict('This order is delivered by the delivery network. Pickup and delivery are recorded when the partner verifies the handover, and cannot be changed here.');
+  }
+  const message = applyOrderStep(ctx, order, action, body);
+  if (!ctx.system) engine.onOrderChanged(ctx.sellerId, order.id, ctx.user);
+  return message;
+}
+function applyOrderStep(ctx, order, action, body) {
   const actor = ctx.user.name;
   const shipment = get('SELECT * FROM shipments WHERE order_id = ? AND seller_id = ?', order.id, ctx.sellerId);
   if (action === 'shipment') { createShipment(ctx, order); logActivity(ctx, 'Generated shipment record', 'order', order.code); return 'Shipment record generated.'; }

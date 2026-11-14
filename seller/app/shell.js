@@ -7,6 +7,7 @@ export const NAV = [
     { label: 'Products', href: '/seller/products', ico: 'box', perm: 'products.read' },
     { label: 'Inventory', href: '/seller/inventory', ico: 'layers', perm: 'inventory.read' },
     { label: 'Orders', href: '/seller/orders', ico: 'cart', perm: 'orders.read' },
+    { label: 'Deliveries', href: '/seller/deliveries', ico: 'send', perm: 'orders.read' },
     { label: 'Returns', href: '/seller/returns', ico: 'undo', perm: 'returns.read' },
     { label: 'Shipping', href: '/seller/shipping', ico: 'truck', perm: 'shipping.read' },
   ] },

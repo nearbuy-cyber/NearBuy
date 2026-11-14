@@ -88,6 +88,7 @@ export async function orderDetail(ctx) {
       h('button.btn', { type: 'button', disabled: !o.documents.invoice, title: o.documents.invoice ? 'Download tax invoice (PDF)' : 'Available once the order is accepted', onClick: () => download(`/orders/${o.code}/invoice.pdf`) }, icon('receipt', 'sm'), 'Invoice'),
       h('button.btn', { type: 'button', disabled: !o.documents.label, title: o.documents.label ? 'Download shipping label (PDF)' : 'Generate a shipment record first', onClick: async () => { if (await download(`/orders/${o.code}/label.pdf`)) reload(); } }, icon('printer', 'sm'), 'Shipping label')] }),
     h('div.card', h('div.card-body.stack', stepper, o.cancellation ? banner('error', [h('b', 'Cancelled. '), `${o.cancellation.reason}${o.cancellation.note ? ` — ${o.cancellation.note}` : ''} · ${o.cancellation.by || ''} · ${fmtDateTime(o.cancellation.at)}`]) : null,
+      o.network_delivery ? banner('', [h('b', 'Delivered by the delivery partner network. '), `Pickup, dispatch and delivery are recorded by the network (${o.network_delivery.status_label || o.network_delivery.status}). `, h('a', { href: `/seller/deliveries/${o.network_delivery.code}` }, `Open delivery ${o.network_delivery.code}`)]) : null,
       o.stock_state === 'none' && !cancelled && o.status === 'new' ? banner('warn', 'There is not enough stock to reserve this order. Update inventory before accepting it, or cancel it.') : null,
       actions.length ? h('div.row.wrap', h('span.small.muted', 'Next step:'), actions) : h('p.small.muted', cancelled || o.status === 'delivered' ? 'This order is closed. No further actions are available.' : can('orders.write') ? 'No action is available at this stage.' : 'Your role can view orders but not change them.'))),
     h('div.grid.main-side',
@@ -138,6 +139,7 @@ async function runReturnAction(code, action) {
 export async function returnDetail(ctx) {
   const { return: r } = await api(`/returns/${ctx.params.code}`);
   const actions = (r.actions || []).map((a) => h(`button.btn${a.key === 'reject' ? '.danger' : '.primary'}`, { type: 'button', dataset: { action: a.key }, onClick: (e) => busy(e.currentTarget, () => runReturnAction(r.code, a)) }, a.label));
+  if (r.status === 'approved' && can('returns.write')) actions.push(h('button.btn', { type: 'button', title: 'A delivery partner collects the product from the customer and brings it to your pickup point', onClick: (e) => busy(e.currentTarget, async () => { try { const out = await api(`/seller/returns/${r.code}/pickup`, { method: 'POST', body: {} }); toast(`Return pickup ${out.code} booked.`, 'success'); navigate(`/seller/deliveries/${out.code}`); } catch (err) { toast(err.message, 'error'); } }) }, 'Book return pickup'));
   return h('div.stack.lg',
     pageHead({ title: `Return ${r.code}`, trail: [['Returns', '/seller/returns'], r.code], tag: [statusBadge(r.status, r.status_label), ' ', demoTag(r.is_demo)], subtitle: `Requested ${fmtDateTime(r.requested_at)} · Order ${r.order_code}`, actions }),
     r.reject_reason ? banner('error', [h('b', 'Rejected: '), r.reject_reason]) : null,

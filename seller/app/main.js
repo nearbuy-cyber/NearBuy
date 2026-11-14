@@ -6,6 +6,7 @@ import * as catalog from './pages-catalog.js';
 import * as orders from './pages-orders.js';
 import * as business from './pages-business.js';
 import * as account from './pages-account.js';
+import * as dlv from './pages-deliveries.js';
 
 const root = document.getElementById('app');
 // access: 'guest' = signed-out only, 'open' = anyone, 'pending' = signed in (email may be unverified), default = signed in and verified.
@@ -34,6 +35,9 @@ state.routes = [
 
   R('/seller/orders', orders.orders, 'Orders'),
   R('/seller/orders/:code', orders.orderDetail, 'Order'),
+  R('/seller/deliveries', dlv.deliveries, 'Deliveries'),
+  R('/seller/deliveries/tickets', dlv.deliveryTickets, 'Delivery issues'),
+  R('/seller/deliveries/:code', dlv.deliveryDetail, 'Delivery'),
   R('/seller/returns', orders.returns, 'Returns'),
   R('/seller/returns/:code', orders.returnDetail, 'Return'),
   R('/seller/shipping', orders.shippingOverview, 'Shipping'),

@@ -1,71 +1,12 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-IN">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#081428" />
+  <meta http-equiv="refresh" content="0; url=/runner/#/register" />
   <meta name="robots" content="noindex" />
-  <title>Join NearBuy Runner · NearBuy</title>
-  <meta http-equiv="refresh" content="2;url=/portal.html#/deliver/register" />
-  <link rel="icon" href="/public/assets/nearbuy-logo.png" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Manrope:wght@700;800&display=swap" rel="stylesheet" />
-  <style>
-    :root { --navy: #081428; --orange: #f47718; --orange-2: #ffb066; }
-    * { box-sizing: border-box; margin: 0; }
-    body {
-      min-height: 100dvh; display: grid; place-items: center; padding: 28px 20px;
-      font-family: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-      color: #e9f0fc; text-align: center;
-      background:
-        radial-gradient(80% 60% at 50% -10%, #17365f 0%, transparent 60%),
-        radial-gradient(60% 50% at 90% 100%, rgba(244,119,24,.22) 0%, transparent 60%),
-        linear-gradient(180deg, #0a1730, #081428);
-    }
-    .card {
-      width: min(430px, 100%); padding: 34px 28px 30px; border-radius: 26px;
-      background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02));
-      border: 1px solid rgba(255,255,255,.12);
-      box-shadow: 0 40px 90px -40px rgba(0,0,0,.95), inset 0 1px 0 rgba(255,255,255,.1);
-    }
-    .mark { width: 52px; height: 52px; margin: 0 auto 18px; filter: drop-shadow(0 12px 20px rgba(0,0,0,.5)); }
-    .mark svg { width: 100%; height: 100%; }
-    .kicker { font-size: 10px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: #b9d0ff; }
-    h1 { margin: 10px 0 8px; font-family: 'Manrope', system-ui, sans-serif; font-size: 27px; font-weight: 800; letter-spacing: -.04em; color: #fff; }
-    p { font-size: 13px; line-height: 1.65; color: #9db1d2; max-width: 34ch; margin: 0 auto; }
-    .bar { position: relative; height: 4px; margin: 24px auto 18px; width: 100%; max-width: 240px; border-radius: 99px; background: rgba(255,255,255,.1); overflow: hidden; }
-    .bar i { position: absolute; inset: 0; border-radius: 99px; background: linear-gradient(90deg, #b9d0ff, #2f6bd8); transform-origin: left; animation: fill 1.9s cubic-bezier(.4,0,.2,1) forwards; }
-    @keyframes fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-    .btn {
-      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-      width: 100%; padding: 12px 18px; border-radius: 12px;
-      font-size: 13.5px; font-weight: 600; color: #fff; text-decoration: none;
-      background: linear-gradient(135deg, #ff9a3d, #ee6a06);
-      box-shadow: 0 16px 32px -18px rgba(244,119,24,.95), inset 0 1px 0 rgba(255,255,255,.32);
-    }
-    .btn:hover { filter: brightness(1.06); }
-    .back { display: inline-block; margin-top: 14px; font-size: 11.5px; color: #8ea4c6; text-decoration: none; border-bottom: 1px solid transparent; }
-    .back:hover { color: #ffb066; border-color: rgba(255,176,102,.5); }
-    .note { margin-top: 16px; font-size: 10.5px; color: #6e82a4; }
-    @media (prefers-reduced-motion: reduce) { .bar i { animation: none; transform: scaleX(1); } }
-  </style>
+  <title>Become a delivery partner</title>
+  <link rel="stylesheet" href="/delivery/kit.css" />
 </head>
-<body>
-  <main class="card">
-    <div class="mark" aria-hidden="true">
-      <svg viewBox="0 0 44 44"><path d="M22 4.5c-7.7 0-14 6.1-14 13.6 0 9.6 11 20.4 13.3 22.4a1 1 0 0 0 1.4 0C25 38.5 36 27.7 36 18.1 36 10.6 29.7 4.5 22 4.5Z" fill="#1b3a72"/><circle cx="22" cy="18" r="7.4" fill="none" stroke="#fff" stroke-width="3.4"/><path d="M6.5 25.5c5.5 4.6 15 6.6 30.5-1.4" fill="none" stroke="#f47718" stroke-width="3.6" stroke-linecap="round"/></svg>
-    </div>
-    <span class="kicker">NearBuy Runner</span>
-    <h1>Join NearBuy Runner</h1>
-    <p>Taking you to partner onboarding. Eligibility and identity checks are simulated here.</p>
-    <div class="bar" aria-hidden="true"><i></i></div>
-    <a class="btn" href="/portal.html#/deliver/register">Start partner registration</a>
-    <a class="back" href="/">← Back to NearBuy home</a>
-    <p class="note">Prototype demo · no real accounts, payments or dispatch.</p>
-  </main>
-  <script>
-    setTimeout(function () { location.replace('/portal.html#/deliver/register'); }, 700);
-  </script>
-</body>
+<body><div class="auth"><div class="card panel"><p><a href="/runner/#/register">Continue to delivery partner registration</a></p></div></div></body>
 </html>
