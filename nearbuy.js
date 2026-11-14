@@ -4775,16 +4775,24 @@ function captureStep(kind, form) {
 }
 
 /* ------------------------------ admin session ------------------------------ */
-function adminSession() {
-  try { return JSON.parse(sessionStorage.getItem(ADMIN_SESSION_KEY) || 'null'); }
-  catch { return null; }
+/* Session flags live in sessionStorage. Browsers can refuse storage for an embedded page (hosted previews, strict
+   privacy settings); the flag is then kept in memory so sign-in still works until the page is reloaded. */
+const memorySession = {};
+function readSessionFlag(key) {
+  try { const raw = sessionStorage.getItem(key); if (raw) return JSON.parse(raw); } catch { /* storage blocked */ }
+  return memorySession[key] || null;
 }
-function setAdminSession(role) {
-  try { sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ role, at: Date.now() })); } catch { /* ignore */ }
+function writeSessionFlag(key, value) {
+  memorySession[key] = value;
+  try { sessionStorage.setItem(key, JSON.stringify(value)); } catch { /* storage blocked: kept in memory */ }
 }
-function clearAdminSession() {
-  try { sessionStorage.removeItem(ADMIN_SESSION_KEY); } catch { /* ignore */ }
+function clearSessionFlag(key) {
+  delete memorySession[key];
+  try { sessionStorage.removeItem(key); } catch { /* ignore */ }
 }
+function adminSession() { return readSessionFlag(ADMIN_SESSION_KEY); }
+function setAdminSession(role) { writeSessionFlag(ADMIN_SESSION_KEY, { role, at: Date.now() }); }
+function clearAdminSession() { clearSessionFlag(ADMIN_SESSION_KEY); }
 /* ---------------------------- portal identities ---------------------------- */
 /* One shell, five workspaces, five separate sign-ins. A customer session never
    opens seller, partner, fleet or operations tools. Browser-only simulation. */
@@ -4802,15 +4810,9 @@ const PUBLIC_VIEWS = {
 };
 const DEMO_PASSWORDS = Object.fromEntries(Object.entries(PORTALS).map(([k, v]) => [k, v.pass]));
 
-function portalSession() {
-  try { return JSON.parse(sessionStorage.getItem(PORTAL_KEY) || 'null'); } catch { return null; }
-}
-function setPortalSession(surface) {
-  try { sessionStorage.setItem(PORTAL_KEY, JSON.stringify({ surface, at: Date.now() })); } catch { /* private mode */ }
-}
-function clearPortalSession() {
-  try { sessionStorage.removeItem(PORTAL_KEY); } catch { /* ignore */ }
-}
+function portalSession() { return readSessionFlag(PORTAL_KEY); }
+function setPortalSession(surface) { writeSessionFlag(PORTAL_KEY, { surface, at: Date.now() }); }
+function clearPortalSession() { clearSessionFlag(PORTAL_KEY); }
 function portalOpen(surface) {
   if (surface === 'ops') return !!adminSession();
   const session = portalSession();
