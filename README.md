@@ -227,3 +227,7 @@ public/assets/        brand mark + compressed 3D renders used by the homepage
 Deep navy `#081428`, marigold `#f47718`, cream `#fbf7f0` and white. Display type is Manrope, body type DM Sans, with system fallbacks. Cards are 16–26 px radius; motion is 200–700 ms on a single easing curve.
 
 > **Prototype notice.** This is a simulated demo. Checkout charges nothing, no shop is contacted, no runner is dispatched, no OTP is sent, no application is really verified, no payout or bank account exists, and no personal or sensitive information should be entered. Maps, distances and pricing are schematic. The proposed adult-only delivery policy and any real worker or business arrangement require qualified Indian legal review; this demo does not determine legal eligibility.
+
+### Master feature checklist
+
+The [NearBuy feature checklist](/roadmap/) translates the 84-item blueprint into five reviewable sections. All items start unchecked; selections persist only in the current browser and can be reset. This is a manual planning aid, not a live implementation or production-readiness tracker. If browser storage is unavailable, selections last only for the current page session.
