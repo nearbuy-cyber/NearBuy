@@ -1785,6 +1785,9 @@ function deliverOverview() {
       ${kpi({ label: 'Your mode', value: r.mode, icon: r.mode === 'Walking' ? 'walk' : 'bike', foot: `${r.maxKm} km radius` })}
     </div>
 
+    ${whyDeliverSection()}
+    ${deliverHowStrip()}
+
     ${active ? `<section class="card card--pad mb-18" style="background:linear-gradient(150deg,#fff,#eef4fe);border-color:#d8e3f8">
       <div class="between wrap mb-14">
         <div><span class="kicker" style="margin:0"><i></i>ACTIVE DELIVERY · ${esc(active.id)}</span><h2 style="font-size:20px">${esc(active.shop)} → ${esc(active.customer)}</h2><p class="tiny muted">${esc(active.area)} · ${active.distance} km · ${money(active.payout)} sample earning</p></div>
@@ -1804,14 +1807,113 @@ function deliverOverview() {
       </div>
     </div>
 
-    <section class="card card--pad">
-      <div class="between wrap mb-14"><div><span class="kicker"><i></i>THE SAME TASK, EVERY WORKSPACE</span><h2 style="font-size:17px">Your delivery is the shop's order and ops' record.</h2></div><button class="btn btn--ghost btn--sm" data-act="switch" data-surface="ops">${icon('shield')} Watch in Ops</button></div>
-      <div class="grid grid--4">
-        ${[['store', 'Shop', 'requested the runner'], ['truck', 'You', 'move it safely'], ['bag', 'Customer', 'confirms with an OTP'], ['shield', 'Ops', 'keeps the network honest']].map(([ic, t, s]) => `<div class="mini-stat"><span class="kpi__icon">${icon(ic)}</span><div><b>${t}</b><small>${s}</small></div></div>`).join('')}
-      </div>
-    </section>
+    ${deliverFeatures()}
   </div>`;
 }
+/* ---- "Why Become a NearBuy Delivery Partner?" band ---- */
+const WHY_DELIVER = [
+  { icon: 'pin', title: 'Nearby delivery opportunities', copy: 'Receive eligible short-distance requests from participating shops around your service area.', state: 'In demo', view: 'requests', link: 'See requests' },
+  { icon: 'clock', title: 'Flexible availability', copy: 'Go online or offline whenever you like, and pass any request without a penalty.', state: 'In demo', view: 'profile', link: 'Set availability' },
+  { icon: 'rupee', title: 'Transparent earnings', copy: 'See the payout for a delivery before you accept it, and a statement of completed tasks.', state: 'In demo', view: 'earnings', link: 'Open earnings' },
+  { icon: 'scan', title: 'Easy parcel pickup', copy: 'Verify each parcel with the shop at handover, so the wrong bag never leaves the counter.', state: 'In demo', view: 'active', link: 'Pickup flow' },
+  { icon: 'truck', title: 'Simple delivery process', copy: 'One clear sequence from accepting a request to confirming the delivery at the door.', state: 'In demo', view: 'active', link: 'See the steps' },
+  { icon: 'package', title: 'Easy task tracking', copy: 'Assigned deliveries, pickup details, the destination and live status in one place.', state: 'In demo', view: 'requests', link: 'Your tasks' },
+  { icon: 'help', title: 'Support when needed', copy: 'Get help with delivery issues, customers, shopkeepers, payments and account questions.', state: 'Partly', view: 'support', link: 'Support & safety' },
+  { icon: 'shield', title: 'Safety and verification', copy: 'Verified accounts, delivery confirmation and safety-first operating procedures.', state: 'In demo', view: 'safety', link: 'Safety centre' }
+];
+
+function whyDeliverSection() {
+  return `<section class="why-block why-deliver" aria-labelledby="whyDeliverTitle">
+    <div class="why-block__head">
+      <div class="why-block__copy">
+        <span class="kicker kicker--deliver"><i></i>WHY BECOME A NEARBUY DELIVERY PARTNER?</span>
+        <p class="why-deliver__message">Your neighbourhood. Your delivery journey.</p>
+        <h2 id="whyDeliverTitle">Deliver locally. Earn fairly. Grow with NearBuy.</h2>
+        <p>Become part of your neighbourhood's delivery network. Connect local shops with nearby customers through convenient, short-distance deliveries.</p>
+      </div>
+      <div class="why-block__actions">
+        <button class="btn btn--primary btn--sm" data-act="nav" data-surface="deliver" data-view="register">${icon('plus')} Join as Delivery Partner</button>
+        <span class="tiny muted">Already registered? You are signed in — no second account needed.</span>
+      </div>
+    </div>
+
+    <div class="why-grid">
+      ${WHY_DELIVER.map((b) => `<article class="why-card">
+        <span class="why-card__icon">${icon(b.icon)}</span>
+        <div class="why-card__body">
+          <div class="why-card__title"><b>${b.title}</b>${pill(b.state, b.state === 'In demo' ? 'green' : 'neutral')}</div>
+          <small>${b.copy}</small>
+          <button class="link why-card__link" data-act="nav" data-surface="deliver" data-view="${b.view}">${b.link} ${icon('arrowRight')}</button>
+        </div>
+      </article>`).join('')}
+    </div>
+
+    <div class="why-deliver__cta">
+      <div>
+        <b>Ready to deliver with NearBuy?</b>
+        <small>Join the local delivery network and become an important part of your neighbourhood's shopping experience.</small>
+      </div>
+      <div class="why-deliver__cta-actions">
+        <button class="btn btn--primary btn--sm" data-act="nav" data-surface="deliver" data-view="register">Join as Delivery Partner ${icon('arrowRight')}</button>
+        <button class="btn btn--ghost btn--sm" data-act="nav" data-surface="deliver" data-view="earnings">See how earnings work</button>
+      </div>
+    </div>
+
+    <div class="why-block__foot">
+      ${icon('shield')}
+      <p><b>No guaranteed orders, fixed earnings or speed incentives.</b> Verified adults aged 18 and over only at launch; every request is yours to accept or decline. Pickup and delivery are confirmed at each handover, payouts are shown before you accept, and settlement details live in Earnings. <span class="why-legend"><i class="why-dot why-dot--green"></i> In demo — working in this prototype</span> <span class="why-legend"><i class="why-dot"></i> Partly — some of it is still planned</span></p>
+    </div>
+  </section>`;
+}
+
+function deliverHowStrip() {
+  const steps = [
+    ['Register as a delivery partner', 'Registration, identity verification and the 18+ eligibility check.', 'user'],
+    ['Receive nearby requests', 'Eligible delivery opportunities from participating local shops.', 'pin'],
+    ['Pick up and deliver', 'Accept, collect with QR/OTP verification, then confirm the delivery.', 'scan'],
+    ['Receive your earnings', 'Completed deliveries, delivery-wise earnings and payout status.', 'rupee']
+  ];
+  return `<section class="how-strip mb-18" aria-labelledby="deliverHowTitle">
+    <div class="between wrap mb-14">
+      <div><span class="kicker"><i></i>HOW NEARBUY RUNNER WORKS</span><h2 id="deliverHowTitle" style="font-size:17px;margin-top:6px">Four steps from registration to your first payout.</h2></div>
+      <a class="link" href="/runner/register/">Registration &amp; eligibility ${icon('arrowRight')}</a>
+    </div>
+    <div class="grid grid--4">
+      ${steps.map(([title, copy, ic], i) => `<div class="how-step">
+        <span class="how-step__num">${i + 1}</span>
+        <span class="kpi__icon">${icon(ic)}</span>
+        <b>${title}</b>
+        <small>${copy}</small>
+      </div>`).join('')}
+    </div>
+  </section>`;
+}
+
+function deliverFeatures() {
+  const features = [
+    ['Online / offline control', 'Only go live when you want work.', 'requests', 'zap'],
+    ['Distance bands', '0–300 m to 2–3 km, chosen by you.', 'profile', 'pin'],
+    ['Pickup & delivery OTP', 'Both handovers verified in the app.', 'active', 'scan'],
+    ['Earnings statements', 'Delivery-wise payouts and history.', 'earnings', 'rupee'],
+    ['Safety centre', 'SOS guidance and incident reports.', 'safety', 'shield'],
+    ['Partner support', 'Issues, customers and account help.', 'support', 'help']
+  ];
+  return `<section class="card card--pad mb-18">
+    <div class="between wrap mb-14">
+      <div><span class="kicker"><i></i>BUILT FOR THE STREET</span><h2 style="font-size:17px;margin-top:6px">What the partner app gives you.</h2><p class="tiny muted" style="margin-top:4px">Every item below opens a working screen in this prototype.</p></div>
+      <button class="btn btn--ghost btn--sm" data-act="nav" data-surface="deliver" data-view="profile">${icon('sliders')} Preferences</button>
+    </div>
+    <div class="grid grid--3">
+      ${features.map(([title, copy, view, ic]) => `<button class="feature-card" data-act="nav" data-surface="deliver" data-view="${view}">
+        <span class="kpi__icon">${icon(ic)}</span>
+        <b>${title}</b>
+        <small>${copy}</small>
+        <span class="link">Open ${icon('arrowUpRight')}</span>
+      </button>`).join('')}
+    </div>
+  </section>`;
+}
+
 function deliverRequests() {
   const r = me();
   const queue = state.tasks.filter((t) => t.status === 'Requested' && !(t.skippedBy || []).includes(r.id));

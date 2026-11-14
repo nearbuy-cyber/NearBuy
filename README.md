@@ -91,7 +91,7 @@ NearBuy One rebuilds them as **one product**:
 | --- | --- | --- |
 | **Shop** | Neighbour | Discover, filter, save, cart, checkout, track orders, manage account, follow shops — plus the **Why Use NearBuy?** benefits band |
 | **Sell** | Green Basket Market | Accept orders, mark ready, request runners, edit catalogue & stock, promotions, payouts, insights, settings, team — plus the **Why Sell on NearBuy?** benefits band |
-| **Deliver** | Runner | Go online, accept/pass requests, shop arrival, pickup OTP, route, delivery OTP, earnings, preferences, safety reports |
+| **Deliver** | Runner | Go online, accept/pass requests, shop arrival, pickup OTP, route, delivery OTP, earnings, preferences, safety reports — plus the **Why Become a NearBuy Delivery Partner?** band |
 | **Fleet** | Neighbourhood fleet lead | Team availability, work allocation, auto-match, reports, safety commitments |
 | **Ops** | South Delhi ops desk | Control tower, dispatch queue, **verification queue**, **homepage enquiry queue**, partner eligibility, service areas, pricing bands, incidents, audit log |
 
@@ -113,19 +113,19 @@ No workspace is a public portal. Any gated route withholds its module list, its 
 
 This is a browser-only demonstration of the model, not a security boundary: the checks run in the client, so production still needs server-side sessions, per-role permission checks on every sensitive action, and MFA for administrative roles.
 
-## Two benefits bands, one identity
+## Three benefits bands, one identity
 
-Both portals carry a benefits band in the same visual language — same card grid, same status/legend pattern, same typographic rhythm — but each speaks to its own side of the marketplace.
+Each portal opens with its own benefits band, built from the same component — same card grid, same status/legend pattern, same closing banner — but speaking to its own side of the marketplace.
 
-| | Seller Hub (`#/sell/overview`) | Customer portal (`#/shop/home`) |
-| --- | --- | --- |
-| Heading | **Why Sell on NearBuy?** | **Why Use NearBuy?** |
-| Message | Grow your business with local customers | Your neighbourhood. Your favourite shops. Everything closer. |
-| Accent | Green | Marigold, over a warm cream band |
-| Proof points | Reach customers, digital shop, catalogue, orders, delivery, promotion, insights, support | Nearby shops, local products, easy search, delivery or pickup, support local, more choice, tracking, assistance |
-| Ends with | Start selling on NearBuy | Explore nearby shops · *Shop local. Shop smart. Shop NearBuy.* |
+| | Customer (`#/shop/home`) | Seller Hub (`#/sell/overview`) | Delivery Partner (`#/deliver/overview`) |
+| --- | --- | --- | --- |
+| Heading | **Why Use NearBuy?** | **Why Sell on NearBuy?** | **Why Become a NearBuy Delivery Partner?** |
+| Message | Your neighbourhood. Your favourite shops. Everything closer. | Grow your business with local customers | Your neighbourhood. Your delivery journey. |
+| Accent | Marigold on warm cream | Green on mint | Blue on pale blue |
+| Proof points | Nearby shops, local products, search, delivery or pickup, support local, choice, tracking, assistance | Reach customers, digital shop, catalogue, orders, delivery, promotion, insights, support | Nearby requests, flexible availability, transparent earnings, easy pickup, simple process, tracking, support, safety |
+| Ends with | Explore nearby shops · *Shop local. Shop smart. Shop NearBuy.* | Start selling on NearBuy | Join as Delivery Partner · see how earnings work |
 
-The customer band sits after discovery (categories, products, shops) and before a compact four-step **How NearBuy works** strip, which replaced an earlier block that advertised workspace switching. Both bands link only to routes inside their own portal, and both state the limits plainly: delivery depends on an eligible Runner, stock and prices belong to the shop, and nothing here guarantees sales, orders or earnings.
+Each band links only to routes inside its own portal, and each states its limits plainly. The partner band also carries a four-step **How NearBuy Runner works** strip (register → receive requests → pick up and deliver → get paid) and says outright that there are no guaranteed orders, fixed earnings or speed incentives, that only verified adults aged 18+ are onboarded at launch, and that every request can be declined without penalty.
 
 ## Selling on NearBuy — the benefits band
 
@@ -140,13 +140,14 @@ The section is NearBuy's own; it borrows the *structure* of marketplace seller p
 
 ### Monthly feature review
 
-Keep both bands honest by reviewing them once a month against what actually ships:
+Keep all three bands honest by reviewing them once a month against what actually ships:
 
 1. Re-read the eight cards on each band against the build; flip **Partly → In demo** only when the feature is genuinely clickable, and delete a card rather than overstate it.
 2. Compare the offer with nearby marketplaces (fees, payout timing, ad formats, support hours, catalogue limits, delivery windows) and record the differences — without importing their guarantees.
 3. Update *Payments & earnings* if commission or settlement timing changes, since the seller band points there for money questions.
 4. Re-walk the customer journeys the customer band claims — search, compare, checkout, pickup, tracking, help — and remove any claim the demo cannot demonstrate.
-5. Check both honesty lines still match reality before publishing any new claim.
+5. **Delivery partner review (monthly):** compare nearby platforms' partner features, earnings models, verification requirements and safety systems; check that distance bands, payout timing and deductions still match what the app shows before a request is accepted, and that the safety centre is reachable from every delivery state.
+6. Check all three honesty lines still match reality before publishing any new claim.
 
 ## Keyboard & shortcuts
 
