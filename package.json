@@ -4,6 +4,7 @@
   "private": true,
   "description": "NearBuy — a neighbourhood commerce platform: 3D marketing homepage plus NearBuy One (Shop, Sell, Deliver, Fleet, Ops) and separate customer, seller and delivery-partner portals.",
   "scripts": {
-    "start": "python3 -m http.server 4173 --bind 0.0.0.0"
+    "start": "python3 -m http.server 4173 --bind 0.0.0.0",
+    "test": "node --test tests/*.test.cjs"
   }
 }

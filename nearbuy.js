@@ -77,6 +77,8 @@ const PATHS = {
   logout: '<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 16l-4-4 4-4"/><path d="M6 12h10"/>',
   spark: '<path d="M12 2v6M12 16v6M2 12h6M16 12h6"/><path d="m5.6 5.6 3.2 3.2M15.2 15.2l3.2 3.2M18.4 5.6l-3.2 3.2M8.8 15.2l-3.2 3.2"/>',
   book: '<path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17.5H6.5A2.5 2.5 0 0 0 4 22z"/><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>',
+  leaf: '<path d="M20 4c-9 0-15 3.5-15 10a6 6 0 0 0 6 6c6.5 0 9-6 9-16z"/><path d="M4 21c2-5 6-9 12-12"/>',
+  bread: '<path d="M5.5 12a5.5 5.5 0 0 1 1.1-10.3 5.8 5.8 0 0 1 10.8 0A5.5 5.5 0 0 1 18.5 12v6.5a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2z" transform="translate(0 1)"/>',
   gift: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8"/><path d="M12 8v13"/><path d="M12 8S9.5 8 8.2 6.6a2.3 2.3 0 1 1 3.2-3.2C12 4.5 12 8 12 8z"/><path d="M12 8s2.5 0 3.8-1.4a2.3 2.3 0 1 0-3.2-3.2C12 4.5 12 8 12 8z"/>'
 };
 function icon(name, cls = '') {
@@ -274,7 +276,8 @@ function loadState() {
     const profile = parsed.profile && parsed.profile.account
       ? { ...base.profile, ...parsed.profile,
           account: { ...base.profile.account, ...(parsed.profile.account || {}) },
-          business: { ...base.profile.business, ...(parsed.profile.business || {}) },
+          // Older saved profiles did not opt in to public contact details.
+          business: { ...base.profile.business, publicOwnerName: '', publicPhone: '', ...(parsed.profile.business || {}) },
           locations: Array.isArray(parsed.profile.locations) && parsed.profile.locations.length ? parsed.profile.locations : base.profile.locations,
           bank: Array.isArray(parsed.profile.bank) ? parsed.profile.bank : base.profile.bank,
           changes: Array.isArray(parsed.profile.changes) ? parsed.profile.changes : base.profile.changes }
@@ -634,12 +637,16 @@ function syncDrawer() {
 
 /* --------------------------------- overlay -------------------------------- */
 function openModal(inner, cls = '') { ui.modal = { inner, cls }; renderOverlay(); }
-function closeModal() { ui.modal = null; ui.palette = null; renderOverlay(); }
+function closeModal() {
+  const returnFocus = ui.modal?.returnFocus;
+  ui.modal = null; ui.palette = null; renderOverlay();
+  if (returnFocus?.isConnected) returnFocus.focus();
+}
 function renderOverlay() {
   const overlay = $('#overlay');
   if (ui.palette) { overlay.innerHTML = paletteHtml(); return; }
   if (!ui.modal) { overlay.innerHTML = ''; return; }
-  overlay.innerHTML = `<div class="backdrop" data-act="backdrop"><section class="modal ${ui.modal.cls}" role="dialog" aria-modal="true">${ui.modal.inner}</section></div>`;
+  overlay.innerHTML = `<div class="backdrop" data-act="backdrop"><section class="modal ${ui.modal.cls}" role="dialog" aria-modal="true" aria-labelledby="nearbuy-modal-title">${ui.modal.inner}</section></div>`;
 }
 
 /* -------------------------------- palette -------------------------------- */
@@ -738,16 +745,42 @@ function orderTimeline(order) {
 }
 
 /* ============================== SHOP WORKSPACE ============================== */
-function productCard(p) {
+// Photographs belong to the original demo products only. If a seller renames one,
+// fall back to its editable emoji rather than showing an unrelated image.
+const DISCOVER_PRODUCT_IMAGES = {
+  p101: { name: 'Farm fresh whole milk', src: '/public/assets/discover-milk.jpg', showcase: '/public/assets/showcase-milk.jpg' },
+  p102: { name: 'Sunrise bananas', src: '/public/assets/discover-bananas.jpg', showcase: '/public/assets/showcase-bananas.jpg' },
+  p103: { name: 'Sourdough country loaf', src: '/public/assets/discover-bread.jpg', showcase: '/public/assets/showcase-bread.jpg' },
+  p104: { name: 'Free range eggs', src: '/public/assets/discover-eggs.jpg', showcase: '/public/assets/showcase-eggs.jpg' }
+};
+function safeProductImageUrl(value) {
+  const url = String(value || '').trim();
+  if (/^\/public\/assets\/[a-z0-9/_\.~-]+$/i.test(url) && !url.split('/').some((part) => part === '.' || part === '..')) return url;
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    const loopback = host === 'localhost' || host.endsWith('.localhost') || /^127\./.test(host) || host === '[::1]';
+    return parsed.protocol === 'https:' && host && !loopback && !parsed.username && !parsed.password ? parsed.href : '';
+  } catch { return ''; }
+}
+function productImageUrls(p) {
+  const custom = Array.isArray(p.images) ? p.images.map(safeProductImageUrl).filter(Boolean).slice(0, 4) : [];
+  if (custom.length) return custom;
+  const demo = DISCOVER_PRODUCT_IMAGES[p.id];
+  return demo && p.name === demo.name ? [demo.src, demo.showcase] : [];
+}
+function productCard(p, opts = {}) {
   const shop = shopById(p.shop);
   const saved = state.saved.includes(p.id);
   const out = p.stock <= 0;
+  const image = opts.featureImage ? (productImageUrls(p)[0] || '') : '';
+  const fallbackIcon = CATEGORIES.find((category) => category.id === p.cat)?.icon || 'package';
   return `<article class="prod">
-    <button class="prod__visual ${p.tone}" data-act="nav" data-surface="shop" data-view="product" data-id="${p.id}" aria-label="View ${esc(p.name)}">
-      <span class="prod__emoji">${p.emoji}</span>
-      ${p.badge ? `<span class="prod__badge">${esc(p.badge)}</span>` : ''}
+    <button class="prod__visual ${p.tone}" data-act="nav" data-surface="shop" data-view="product" data-id="${p.id}" aria-label="View ${esc(p.name)}${p.badge ? ` — ${esc(p.badge)}` : ''}">
+      ${image ? `<img class="prod__photo" src="${esc(image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-product-image="card" /><span class="prod__image-fallback" data-image-fallback hidden aria-hidden="true">${icon(fallbackIcon)}</span>` : `<span class="prod__image-fallback" aria-hidden="true">${icon(fallbackIcon)}</span>`}
+      ${p.badge ? `<span class="prod__badge" aria-hidden="true">${esc(p.badge)}</span>` : ''}
     </button>
-    <button class="prod__save ${saved ? 'on' : ''}" data-act="save" data-id="${p.id}" aria-label="${saved ? 'Remove from' : 'Add to'} saved items">${icon('heart')}</button>
+    <button class="prod__save ${saved ? 'on' : ''}" data-act="save" data-id="${p.id}" aria-label="${saved ? `Remove ${esc(p.name)} from saved items` : `Save ${esc(p.name)} for later`}" aria-pressed="${saved}">${icon('heart')}</button>
     <div class="prod__body">
       <button class="prod__shop" data-act="nav" data-surface="shop" data-view="shop" data-id="${shop.id}">${icon('pin')}${esc(shop.name)}</button>
       <button class="prod__name" data-act="nav" data-surface="shop" data-view="product" data-id="${p.id}">${esc(p.name)}</button>
@@ -779,82 +812,132 @@ function shopCard(shop) {
     </div>
   </article>`;
 }
-function shopHome() {
-  const popular = ['p101', 'p102', 'p103', 'p106', 'p110', 'p105', 'p117', 'p107'].map((id) => state.catalogue.find((p) => p.id === id)).filter(Boolean);
-  const featured = SHOPS.slice(0, 3);
-  const pulse = {
-    orders: state.orders.filter((o) => o.status !== 'Delivered' && o.status !== 'Cancelled').length,
-    tasks: liveTasks().length,
-    online: state.runners.filter((r) => r.online).length
-  };
-  return `<div class="page">
-    <section class="hero">
-      <div class="hero__copy">
-        <span class="hero__eyebrow"><i></i> ${esc(areaLabel())} · live demo neighbourhood</span>
-        <h1>One portal for your <em>whole</em> neighbourhood.</h1>
-        <p>Shop the corner shops you love, track your delivery in real time, and see the same order move through the seller, runner and ops workspaces — all in one place.</p>
-        <div class="hero__cta">
-          <button class="btn btn--primary btn--lg" data-act="nav" data-surface="shop" data-view="explore">Browse nearby ${icon('arrowRight')}</button>
-          <button class="btn btn--ghost btn--lg" data-act="nav" data-surface="shop" data-view="orders">${icon('package')} Track your orders</button>
-        </div>
-        <div class="hero__chips">
-          <span class="hero__chip">${icon('checkCircle')} Real neighbourhood shops</span>
-          <span class="hero__chip">${icon('checkCircle')} Pickup or local delivery</span>
-          <span class="hero__chip">${icon('checkCircle')} One order, one live story</span>
-        </div>
-      </div>
-      <div class="hero__side">
-        <form class="hero__search" id="hero-search" data-form="hero-search">
-          <label for="heroSearch">FIND SOMETHING NEARBY</label>
-          <div class="hero__searchbox">${icon('search')}<input id="heroSearch" name="q" type="search" placeholder="Milk, notebooks, honey…" autocomplete="off" /><button class="btn btn--sm btn--primary" type="submit">Search</button></div>
-          <div class="hero__quick">${['Fresh produce', 'Bakery', 'Stationery', 'Home & kitchen'].map((label) => `<button type="button" data-act="quick-search" data-q="${esc(label.split(' ')[0])}">${esc(label)}</button>`).join('')}</div>
-        </form>
-        <div class="hero__statline">
-          <div><b>${SHOPS.length}</b><small>LOCAL SHOPS</small></div>
-          <div><b>${state.catalogue.length}</b><small>NEARBY FINDS</small></div>
-          <div><b>${pulse.online}</b><small>RUNNERS ONLINE</small>${sparkline([12, 18, 15, 24, 21, 28, 26], { w: 62, h: 18 })}</div>
-        </div>
-      </div>
-    </section>
-
-    <section class="grid grid--4 mb-18">
-      ${[
-        ['Shops nearby', SHOPS.length, 'store', `in ${esc(areaLabel())}`, 'shops'],
-        ['Nearby finds', state.catalogue.length, 'package', 'across groceries, stationery & more', 'explore'],
-        ['Open right now', SHOPS.filter((x) => x.open).length, 'clock', 'accepting orders', 'shops'],
-        ['Runners online', pulse.online, 'truck', 'for eligible deliveries', 'help']
-      ].map(([label, value, ic, foot, view]) => `
-        <button class="card kpi" data-act="nav" data-surface="shop" data-view="${view}" style="text-align:left">
-          <span class="kpi__top"><span class="kpi__label">${label}</span><span class="kpi__icon">${icon(ic)}</span></span>
-          <span class="kpi__value">${value}</span>
-          <span class="kpi__foot"><span>${foot}</span>${icon('arrowUpRight', 'sm')}</span>
-        </button>`).join('')}
-    </section>
-
-    ${subHead('A little bit of everything', 'Shop by what you need — everything nearby, nothing far away.', `<button class="link" data-act="nav" data-surface="shop" data-view="explore">All categories ${icon('arrowRight')}</button>`)}
-    <div class="cat-grid mb-18">
-      ${CATEGORIES.filter((c) => c.id !== 'all').map((c) => `
-        <button class="cat-tile" data-act="category" data-cat="${c.id}">
-          <span class="cat-tile__icon">${icon(c.icon)}</span><b>${c.label}</b>
-          <small>${state.catalogue.filter((p) => p.cat === c.id).length} finds nearby</small>
-        </button>`).join('')}
+function discoverShopCard(shop) {
+  const count = state.catalogue.filter((p) => p.shop === shop.id).length;
+  return `<article class="card shop-card discover-shop-card">
+    <button class="discover-shop-card__cover ${shop.tone}" data-act="nav" data-surface="shop" data-view="shop" data-id="${shop.id}" aria-label="Visit ${esc(shop.name)} — ${shop.open ? 'Open now' : 'Closed today'}">
+      <span class="shop-card__open ${shop.open ? '' : 'closed'}" aria-hidden="true">${shop.open ? '● Open now' : 'Closed today'}</span>
+      <svg class="discover-shop-card__art" viewBox="0 0 160 110" aria-hidden="true">
+        <ellipse cx="80" cy="101" rx="58" ry="5" fill="#15332d" opacity=".09"/>
+        <rect x="34" y="33" width="92" height="65" rx="5" fill="#fffaf2"/>
+        <rect x="42" y="55" width="43" height="35" rx="2" fill="#d9e9e3"/>
+        <path d="M63.5 55v35M42 73h43" stroke="#fffaf2" stroke-width="3"/>
+        <rect x="91" y="55" width="25" height="43" rx="2" fill="#c7ddd5"/>
+        <path d="M95 61h17v27H95z" fill="#eaf4ee"/><circle cx="111" cy="79" r="1.5" fill="#57786b"/>
+        <path d="M29 36 35 20h90l6 16v6c0 5-7 7-10 3-3 4-10 4-13 0-3 4-10 4-13 0-3 4-10 4-13 0-3 4-10 4-13 0-3 4-10 4-13 0-3 4-10 4-13 0-4 4-14 2-14-3z" fill="#fff9ed"/>
+        <path d="M35 20h14l-4 16v6c0 5-7 7-10 3-3 3-6 2-6-3v-6zm29 0h14l-1 16v6c0 5-7 7-10 3-3 3-6 2-6-3v-6zm29 0h14l3 16v6c0 5-7 7-10 3-3 3-6 2-6-3v-6zm29 0h3l6 16v6c0 5-7 7-10 3-3 3-6 2-6-3v-6z" fill="var(--discover-shop-accent, #7eaa86)"/>
+        <path d="M31 98h98" stroke="#839c8f" stroke-opacity=".35" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <div class="shop-card__body">
+      <div class="shop-card__title"><div><h3>${esc(shop.name)}</h3><small>${esc(shop.cat)}</small></div><span class="rating">${icon('star')}${shop.rating}</span></div>
+      <div class="shop-card__meta"><span>${icon('pin')}${esc(shop.area)} · ${shop.distance} km</span><span>${icon('clock')}${shop.time}</span></div>
+      <p class="shop-card__p">${esc(shop.description)}</p>
+      <div class="shop-card__foot"><span class="tiny muted">${count} ${count === 1 ? 'item' : 'items'} nearby</span><button class="link" data-act="nav" data-surface="shop" data-view="shop" data-id="${shop.id}">Visit shop ${icon('arrowUpRight')}</button></div>
     </div>
+  </article>`;
+}
+function shopHome() {
+  const popular = [...state.catalogue]
+    .filter((p) => p.stock > 0)
+    .sort((a, b) => (b.sold || 0) - (a.sold || 0))
+    .slice(0, 4);
+  const featured = [...SHOPS].sort((a, b) => Number(b.open) - Number(a.open) || a.distance - b.distance).slice(0, 3);
+  const ordersInProgress = openOrders().length;
+  const saved = savedCount();
+  const categoryIcons = { grocery: 'bag', fresh: 'leaf', bakery: 'bread', stationery: 'book', home: 'home', personal: 'heart' };
+  const offerApplied = state.coupon === 'LOCAL10';
+  return `<div class="page discover-page">
+    <header class="discover-welcome">
+      <div>
+        <span class="discover-eyebrow"><i></i> YOUR NEIGHBOURHOOD, ALL TOGETHER</span>
+        <h1>Hello, ${esc(CUSTOMER.name.split(' ')[0])} <span aria-hidden="true">✳</span></h1>
+        <p>Find a little more to love, right where you live.</p>
+      </div>
+      <button class="discover-location" data-act="area">
+        <span class="discover-location__icon">${icon('pin')}</span>
+        <span><small>SHOPPING IN</small> <b>${esc(areaLabel())}</b></span><span class="sr-only">Change your demo neighbourhood</span>${icon('chevronDown', 'sm')}
+      </button>
+    </header>
 
-    ${subHead('Good finds, right around you', 'Popular with your neighbours this week.', `<button class="link" data-act="nav" data-surface="shop" data-view="explore">See all ${icon('arrowRight')}</button>`)}
-    <div class="prod-grid mb-18">${popular.map(productCard).join('')}</div>
+    <section class="discover-hero" aria-labelledby="discoverHeroTitle">
+      <div class="discover-hero__image" aria-hidden="true"><img src="/public/assets/discover-local-market.jpg" alt="" fetchpriority="high" /></div>
+      <div class="discover-hero__copy">
+        <span class="discover-hero__eyebrow">${icon('sparkles')} A LITTLE CLOSER TO HOME</span>
+        <h2 id="discoverHeroTitle">Good things are<br />just around <em>the corner.</em></h2>
+        <p>From fresh picks to everyday essentials, discover the neighbourhood shops you’ll love.</p>
+        <form class="discover-search" id="hero-search" role="search">
+          <label class="sr-only" for="heroSearch">Search products, shops and categories</label>
+          ${icon('search')}
+          <input id="heroSearch" name="q" type="search" placeholder="Search milk, bread, shops..." autocomplete="off" />
+          <button type="submit">Search ${icon('arrowRight')}</button>
+        </form>
+        <div class="discover-suggestions"><span>Popular:</span>
+          <button type="button" data-act="category" data-cat="fresh">Fresh produce</button>
+          <button type="button" data-act="category" data-cat="bakery">Bakery & dairy</button>
+          <button type="button" data-act="category" data-cat="stationery">Stationery</button>
+        </div>
+      </div>
+      <div class="discover-hero__note" aria-hidden="true"><span>${icon('store')}</span><div><b>Made for local living</b><small>Lovely finds, closer to you</small></div></div>
+    </section>
 
-    ${subHead('The people behind the good stuff', 'Real shops, run by people who know your street.', `<button class="link" data-act="nav" data-surface="shop" data-view="shops">All shops ${icon('arrowRight')}</button>`)}
-    <div class="grid grid--3 mb-18">${featured.map(shopCard).join('')}</div>
+    <section class="discover-shortcuts" aria-label="Your shopping shortcuts">
+      <button class="discover-shortcut" data-act="nav" data-surface="shop" data-view="shops">
+        <span class="discover-shortcut__icon discover-shortcut__icon--green">${icon('store')}</span>
+        <span><b>${SHOPS.length} local shops</b><small>Meet your neighbourhood</small></span>${icon('arrowUpRight', 'discover-shortcut__arrow')}
+      </button>
+      <button class="discover-shortcut" data-act="nav" data-surface="shop" data-view="saved">
+        <span class="discover-shortcut__icon discover-shortcut__icon--rose">${icon('heart')}</span>
+        <span><b>${saved} saved ${saved === 1 ? 'find' : 'finds'}</b><small>All your favourites, together</small></span>${icon('arrowUpRight', 'discover-shortcut__arrow')}
+      </button>
+      <button class="discover-shortcut" data-act="nav" data-surface="shop" data-view="orders">
+        <span class="discover-shortcut__icon discover-shortcut__icon--blue">${icon('package')}</span>
+        <span><b>${ordersInProgress ? `${ordersInProgress} order${ordersInProgress === 1 ? '' : 's'} in progress` : 'Track your orders'}</b><small>${ordersInProgress ? 'See the latest updates' : 'Your updates in one place'}</small></span>${icon('arrowUpRight', 'discover-shortcut__arrow')}
+      </button>
+    </section>
+
+    <section class="discover-section" aria-labelledby="discoverCategoriesTitle">
+      <div class="discover-section__head">
+        <div><span class="discover-section__kicker">A GOOD PLACE TO START</span><h2 id="discoverCategoriesTitle">Shop by category</h2><p>Everyday essentials, and a few lovely extras.</p></div>
+        <button class="discover-text-link" data-act="discover-all">Browse everything ${icon('arrowRight')}</button>
+      </div>
+      <div class="discover-categories">
+        ${CATEGORIES.filter((c) => c.id !== 'all').map((c) => {
+          const count = state.catalogue.filter((p) => p.cat === c.id).length;
+          return `<button class="discover-category discover-category--${c.id}" data-act="category" data-cat="${c.id}">
+            <span class="discover-category__art" aria-hidden="true">${icon(categoryIcons[c.id] || c.icon)}</span>
+            <span class="discover-category__name">${esc(c.label)}</span><small>${count} ${count === 1 ? 'find' : 'finds'}</small>
+            <span class="discover-category__arrow">${icon('arrowUpRight')}</span>
+          </button>`;
+        }).join('')}
+      </div>
+    </section>
+
+    <section class="discover-section" aria-labelledby="discoverPopularTitle">
+      <div class="discover-section__head">
+        <div><span class="discover-section__kicker">THE NEIGHBOURHOOD EDIT</span><h2 id="discoverPopularTitle">Good finds, picked for you</h2><p>Popular picks from the shops around you.</p></div>
+        <div class="discover-section__actions"><button class="discover-deals-link" data-act="discover-deals">${icon('tag')} Shop deals</button><button class="discover-text-link" data-act="discover-all">See all finds ${icon('arrowRight')}</button></div>
+      </div>
+      ${popular.length ? `<div class="prod-grid discover-products">${popular.map((p) => productCard(p, { featureImage: true })).join('')}</div>` : emptyState('package', 'No products in stock right now', 'Browse the catalogue for more neighbourhood finds.', `<button class="btn btn--ghost btn--sm" data-act="discover-all">Browse everything</button>`)}
+    </section>
+
+    <section class="discover-offer" aria-labelledby="discoverOfferTitle">
+      <div class="discover-offer__icon" aria-hidden="true">${icon('gift')}</div>
+      <div class="discover-offer__copy"><span> A LITTLE THANK-YOU FOR SHOPPING LOCAL</span><h2 id="discoverOfferTitle">A little extra for your basket.</h2><p>Enjoy 10% off your demo order with <b>LOCAL10</b>. No real payment is taken.</p></div>
+      <button class="discover-offer__button ${offerApplied ? 'is-applied' : ''}" data-act="discover-offer" aria-pressed="${offerApplied}">${offerApplied ? `${icon('checkCircle')} Offer applied` : `Apply demo offer ${icon('arrowRight')}`}</button>
+    </section>
+
+    <section class="discover-section" aria-labelledby="discoverShopsTitle">
+      <div class="discover-section__head">
+        <div><span class="discover-section__kicker">GOOD PEOPLE, GREAT SHOPS</span><h2 id="discoverShopsTitle">Meet your local favourites</h2><p>Get to know the people behind your everyday finds.</p></div>
+        <button class="discover-text-link" data-act="nav" data-surface="shop" data-view="shops">See all shops ${icon('arrowRight')}</button>
+      </div>
+      <div class="discover-shop-grid">${featured.map(discoverShopCard).join('')}</div>
+    </section>
 
     ${whyUseSection()}
-
     ${howItWorksStrip()}
-
-    <section class="banner">
-      ${icon('sparkles', 'lg')}
-      <div><b>Good things are closer than you think.</b><small>Fresh produce, stationery and everyday essentials from ${SHOPS.filter((s) => s.open).length} shops open right now in ${esc(areaLabel())}.</small></div>
-      <button class="btn btn--light btn--sm" data-act="nav" data-surface="shop" data-view="explore">Start exploring ${icon('arrowRight')}</button>
-    </section>
+    <p class="discover-demo-note">${icon('shield')} Demo neighbourhood · Stock, delivery and orders are simulated in this browser.</p>
   </div>`;
 }
 /* ---- "Why Use NearBuy?" — customer benefits band ---- */
@@ -946,13 +1029,24 @@ function howItWorksStrip() {
   </section>`;
 }
 
+function resetExploreFilters() {
+  ui.query = '';
+  ui.category = 'all';
+  ui.sort = 'popular';
+  ui.exploreAvailable = false;
+  ui.exploreDeals = false;
+}
 function filteredCatalogue() {
-  const q = (ui.query || '').trim().toLowerCase();
+  const terms = (ui.query || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
   let items = state.catalogue.filter((p) => {
     const shop = shopById(p.shop);
-    const matchQ = !q || `${p.name} ${p.detail} ${shop.name} ${shop.cat} ${p.id}`.toLowerCase().includes(q);
+    const category = CATEGORIES.find((c) => c.id === p.cat);
+    const searchable = `${p.name} ${p.detail || ''} ${p.cat} ${category?.label || ''} ${shop.name} ${shop.cat} ${p.id}`.toLowerCase();
+    const matchQ = terms.every((term) => searchable.includes(term));
     const matchCat = !ui.category || ui.category === 'all' || p.cat === ui.category;
-    return matchQ && matchCat;
+    const matchAvailable = !ui.exploreAvailable || p.stock > 0;
+    const matchDeal = !ui.exploreDeals || Number(p.mrp) > Number(p.price);
+    return matchQ && matchCat && matchAvailable && matchDeal;
   });
   const sort = ui.sort || 'popular';
   if (sort === 'price-low') items = [...items].sort((a, b) => a.price - b.price);
@@ -964,7 +1058,7 @@ function filteredCatalogue() {
 function exploreResults() {
   const items = filteredCatalogue();
   if (!items.length) return emptyState('search', 'Nothing nearby just yet', 'Try a different word, or clear the filters to see every local find.', `<button class="btn btn--ghost btn--sm" data-act="clear-filters">Clear filters</button>`);
-  return `<div class="prod-grid">${items.map(productCard).join('')}</div>`;
+  return `<div class="prod-grid">${items.map((p) => productCard(p, { featureImage: true })).join('')}</div>`;
 }
 function shopExplore() {
   const items = filteredCatalogue();
@@ -973,13 +1067,18 @@ function shopExplore() {
     <section class="card mb-18">
       <div class="toolbar">
         <div class="inline-search grow" style="max-width:330px">
+          <label class="sr-only" for="exploreSearch">Search products, shops and categories</label>
           ${icon('search')}<input class="input" id="exploreSearch" type="search" placeholder="Search products, shops, categories…" value="${esc(ui.query || '')}" autocomplete="off" />
         </div>
-        <div class="chips">
-          ${CATEGORIES.map((c) => `<button class="chip ${(ui.category || 'all') === c.id ? 'active' : ''}" data-act="filter-cat" data-cat="${c.id}">${c.label}</button>`).join('')}
+        <div class="chips" role="group" aria-label="Product categories">
+          ${CATEGORIES.map((c) => `<button id="explore-category-${c.id}" class="chip ${(ui.category || 'all') === c.id ? 'active' : ''}" data-act="filter-cat" data-cat="${c.id}" aria-pressed="${(ui.category || 'all') === c.id}">${c.label}</button>`).join('')}
+        </div>
+        <div class="chips" role="group" aria-label="Additional filters">
+          <button id="explore-stock" class="chip ${ui.exploreAvailable ? 'active' : ''}" data-act="filter-stock" aria-pressed="${!!ui.exploreAvailable}">${icon('checkCircle')} In stock</button>
+          <button id="explore-deals" class="chip ${ui.exploreDeals ? 'active' : ''}" data-act="filter-deals" aria-pressed="${!!ui.exploreDeals}">${icon('tag')} Deals</button>
         </div>
         <div class="grow"></div>
-        <select class="select" style="width:auto;height:34px" data-act="sort">
+        <select id="explore-sort" class="select" style="width:auto;height:34px" data-act="sort" aria-label="Sort products">
           <option value="popular" ${ui.sort === 'popular' ? 'selected' : ''}>Most popular</option>
           <option value="price-low" ${ui.sort === 'price-low' ? 'selected' : ''}>Price: low to high</option>
           <option value="price-high" ${ui.sort === 'price-high' ? 'selected' : ''}>Price: high to low</option>
@@ -987,7 +1086,7 @@ function shopExplore() {
         </select>
       </div>
       <div class="card__body--tight" style="padding:14px 18px 18px">
-        <div class="spread mb-10"><span class="tiny muted" id="exploreCount">${items.length} finds · pickup or local delivery</span><span class="tiny muted">Prices include local store pricing</span></div>
+        <div class="spread mb-10"><span class="tiny muted" id="exploreCount" role="status" aria-live="polite">${items.length} finds · pickup or local delivery</span><span class="tiny muted">Prices include local store pricing</span></div>
         <div id="exploreResults">${exploreResults()}</div>
       </div>
     </section>
@@ -1045,49 +1144,138 @@ function shopDetail(id) {
     </div>
   </div>`;
 }
+function publicShopDetails(shop) {
+  if (shop.id !== SELLER.shopId) {
+    return { name: shop.name, owner: shop.publicOwner || '', phone: shop.publicPhone || '', address: shop.area || '', hours: '' };
+  }
+  const business = state.profile?.business || {};
+  // The public catalogue area is safe to show; profile locations include runner-only details.
+  return { name: business.name || shop.name, owner: business.publicOwnerName || '', phone: business.publicPhone || '', address: shop.area || '', hours: '' };
+}
+function productHighlights(p, shop) {
+  const supplied = Array.isArray(p.highlights) ? p.highlights.filter((item) => typeof item === 'string' && item.trim()).slice(0, 6) : [];
+  if (supplied.length) return supplied;
+  return [...String(p.detail || '').split('·').map((item) => item.trim()).filter(Boolean), `Sold by ${shop.name}`];
+}
+function productSpecifications(p, shop) {
+  const category = CATEGORIES.find((item) => item.id === p.cat);
+  const supplied = Array.isArray(p.specifications) ? p.specifications.filter((item) => item && typeof item.label === 'string' && typeof item.value === 'string' && item.label.trim() && item.value.trim()).slice(0, 10) : [];
+  return [
+    { label: 'Product', value: p.name },
+    { label: 'Category', value: category?.label || 'Not provided' },
+    { label: 'Product details', value: p.detail || 'Not provided' },
+    { label: 'Sold by', value: shop.name },
+    ...supplied
+  ];
+}
+function productInfoRows(rows) {
+  return `<dl class="pdetail-facts">${rows.map(({ label, value }) => `<div><dt>${esc(label)}</dt><dd>${esc(value || 'Not provided by the shop')}</dd></div>`).join('')}</dl>`;
+}
+function productDetailPanel(p, shop, tab) {
+  if (tab === 'description') return `<h3>Description</h3><p>${esc(p.description || p.detail || 'The shop has not added a description for this item yet.')}</p>${!p.description && p.detail ? `<p class="pdetail-fineprint">The shop has not added a longer description yet.</p>` : ''}`;
+  if (tab === 'warranty') return `<h3>Warranty</h3><p>${esc(p.warranty || 'Warranty information has not been provided by the shop. Please check with the seller before purchasing.')}</p>`;
+  if (tab === 'manufacturer') return `<h3>Manufacturer info</h3>${productInfoRows([
+    { label: 'Manufacturer', value: p.manufacturerName },
+    { label: 'Manufacturer address', value: p.manufacturerAddress },
+    { label: 'Country of origin', value: p.countryOfOrigin }
+  ])}`;
+  return `<h3>Specifications</h3>${productInfoRows(productSpecifications(p, shop))}`;
+}
 function shopProduct(id) {
-  const p = productById(id);
+  const p = state.catalogue.find((item) => item.id === id);
+  if (!p) return `<div class="page">${pageHead('LOCAL FIND', 'This item is no longer available', 'It may have been removed from the demo catalogue.', `<button class="btn btn--ghost btn--sm" data-act="discover-all">Browse nearby</button>`)}</div>`;
   const shop = shopById(p.shop);
+  const publicShop = publicShopDetails(shop);
+  const category = CATEGORIES.find((item) => item.id === p.cat);
   const saved = state.saved.includes(p.id);
-  const related = state.catalogue.filter((x) => x.shop === p.shop && x.id !== p.id).slice(0, 4);
+  if (ui.productDetailId !== p.id) {
+    ui.productDetailId = p.id; ui.productImageIndex = 0; ui.productTab = 'specifications'; ui.qty = 1;
+  }
   const qty = ui.qty || 1;
-  return `<div class="page">
-    <button class="backlink" data-act="nav" data-surface="shop" data-view="explore">${icon('chevronLeft')} All local finds</button>
-    <div class="grid grid--aside mb-18">
-      <div class="stack">
-        <div class="pdp__visual ${p.tone}"><span class="pdp__emoji">${p.emoji}</span></div>
-        <div class="grid grid--3">
-          ${[['Freshness', 'Picked this morning'], ['Local shop', shop.name], ['Fulfilment', 'Pickup or delivery']].map(([k, v]) => `<div class="mini-stat">${icon('checkCircle')}<div><b>${esc(v)}</b><small>${k}</small></div></div>`).join('')}
+  const images = productImageUrls(p);
+  const imageIndex = clamp(Number(ui.productImageIndex) || 0, 0, Math.max(0, images.length - 1));
+  const image = images[imageIndex];
+  const description = p.description || p.detail || 'The shop has not added a description for this item yet.';
+  const highlights = productHighlights(p, publicShop);
+  const tabs = [['specifications', 'Specifications'], ['description', 'Description'], ['warranty', 'Warranty'], ['manufacturer', 'Manufacturer info']];
+  const activeTab = tabs.some(([key]) => key === ui.productTab) ? ui.productTab : 'specifications';
+  const related = state.catalogue.filter((item) => item.id !== p.id && item.cat === p.cat).slice(0, 4);
+  if (related.length < 4) state.catalogue.filter((item) => item.id !== p.id && item.shop === p.shop && !related.some((other) => other.id === item.id)).slice(0, 4 - related.length).forEach((item) => related.push(item));
+  const imageIsCustom = Array.isArray(p.images) && p.images.some(safeProductImageUrl);
+  const placeholder = `<div class="pdetail-placeholder"><span>${icon(category?.icon || 'package')}</span><b>${esc(p.name)}</b><small>No showcase images have been added for this item.</small></div>`;
+  return `<div class="page pdetail-page">
+    <nav class="pdetail-breadcrumb" aria-label="Breadcrumb">
+      <button data-act="nav" data-surface="shop" data-view="home">Discover</button>${icon('chevronRight')}
+      <button data-act="category" data-cat="${esc(p.cat)}">${esc(category?.label || 'Local finds')}</button>${icon('chevronRight')}
+      <span aria-current="page">${esc(p.name)}</span>
+    </nav>
+    <div class="pdetail-layout">
+      <div class="pdetail-main-column">
+      <section class="pdetail-gallery" aria-labelledby="productShowcaseTitle">
+        <div class="pdetail-sectionhead"><div><span class="pdetail-kicker">A CLOSER LOOK</span><h2 id="productShowcaseTitle">Showcase</h2></div><span class="pdetail-image-count" aria-live="polite">${images.length ? `${imageIndex + 1} / ${images.length}` : 'No photos yet'}</span></div>
+        <div class="pdetail-gallery__main ${esc(p.tone || '')}">
+          ${image ? `<img src="${esc(image)}" alt="${esc(p.name)} — showcase image ${imageIndex + 1}" referrerpolicy="no-referrer" data-product-image="main" /><div class="pdetail-placeholder" data-image-fallback hidden><span>${icon('package')}</span><b>Image unavailable</b><small>The shop image could not be loaded.</small></div>` : placeholder}
+          ${p.badge ? `<span class="pdetail-gallery__badge">${esc(p.badge)}</span>` : ''}
+          <button id="product-gallery-save" class="pdetail-gallery__save ${saved ? 'is-saved' : ''}" data-act="save" data-id="${esc(p.id)}" aria-label="${saved ? `Remove ${esc(p.name)} from saved items` : `Save ${esc(p.name)} for later`}" aria-pressed="${saved}">${icon('heart')}</button>
         </div>
-        ${card({ title: 'About this find', body: `<p class="small muted" style="line-height:1.65">${esc(p.detail)}. Sourced by ${esc(shop.name)} in ${esc(shop.area)}, ${shop.distance} km from you. Stock is updated by the shop in the Seller workspace, so what you see is what is on the shelf.</p>
-          <div class="stat-strip mt-14">
-            <div><b>${p.stock > 0 ? p.stock : '0'}</b><small>In stock now</small></div>
-            <div><b>${shop.rating}</b><small>Shop rating</small></div>
-            <div><b>${shop.time}</b><small>Typical delivery</small></div>
-          </div>` })}
+        ${images.length > 1 ? `<div class="pdetail-thumbs" role="group" aria-label="Choose a showcase image">${images.map((src, index) => `<button id="product-image-${index}" class="pdetail-thumb ${imageIndex === index ? 'is-active' : ''}" data-act="product-image" data-index="${index}" aria-label="View showcase image ${index + 1}" aria-pressed="${imageIndex === index}"><img src="${esc(src)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-product-image="thumb" /></button>`).join('')}</div>` : ''}
+        <p class="pdetail-gallery__note">${imageIsCustom ? 'Images supplied by the shop. This is a simulated listing.' : images.length ? 'Illustrative demo images; the listing is simulated.' : 'The shop can add showcase images to its catalogue.'}</p>
+      </section>
+
+      <section class="pdetail-panel pdetail-about" aria-labelledby="productDescriptionTitle">
+        <span class="pdetail-kicker">GET TO KNOW IT</span><h2 id="productDescriptionTitle">Description</h2><p>${esc(description)}</p>${!p.description && p.detail ? `<p class="pdetail-fineprint">The shop has not added a longer description yet.</p>` : ''}
+      </section>
+      ${images.length > 1 ? `<figure class="pdetail-feature" aria-label="Another showcase view of ${esc(p.name)}">
+        <img src="${esc(images[1])}" alt="${esc(p.name)} — another showcase view" loading="lazy" referrerpolicy="no-referrer" data-product-image="feature" />
+        <div class="pdetail-placeholder" data-image-fallback hidden><span>${icon('package')}</span><b>Image unavailable</b><small>This showcase image could not be loaded.</small></div>
+        <figcaption><span class="pdetail-kicker">ANOTHER LOOK</span><b>More from this listing</b><small>${imageIsCustom ? 'From the shop’s showcase' : 'Illustrative demo image'}</small></figcaption>
+      </figure>` : ''}
+      <section class="pdetail-panel pdetail-shop" aria-labelledby="productShopTitle">
+        <div class="pdetail-panel__title"><div><span class="pdetail-kicker">MEET YOUR NEIGHBOUR</span><h2 id="productShopTitle">Shop details</h2></div><span class="pdetail-shop__icon">${icon('store')}</span></div>
+        <b class="pdetail-shop__name">${esc(publicShop.name)}</b>
+        ${productInfoRows([
+          { label: 'Shop location', value: publicShop.address },
+          { label: 'Owner name', value: publicShop.owner },
+          { label: 'Phone number', value: publicShop.phone },
+          ...(publicShop.hours ? [{ label: 'Opening hours', value: publicShop.hours }] : [])
+        ])}
+        <button class="pdetail-shop__visit" data-act="nav" data-surface="shop" data-view="shop" data-id="${esc(shop.id)}">Visit this shop ${icon('arrowRight')}</button>
+        <p class="pdetail-fineprint">Demo listing: contact details are sample information. No shop is contacted; please do not call.</p>
+      </section>
       </div>
-      <aside class="stack">
-        <div class="card card--pad">
-          <button class="prod__shop mb-6" data-act="nav" data-surface="shop" data-view="shop" data-id="${shop.id}">${icon('pin')}${esc(shop.name)} · ${shop.distance} km</button>
-          <h1 style="font-size:24px;letter-spacing:-.035em">${esc(p.name)}</h1>
-          <p class="small muted" style="margin:4px 0 12px">${esc(p.detail)}</p>
-          <div class="price-block mb-14"><b>${money(p.price)}</b>${p.mrp > p.price ? `<del>${money(p.mrp)}</del><span class="pill pill--green">Save ${money(p.mrp - p.price)}</span>` : ''}</div>
-          ${p.stock > 0 ? `<div class="row gap-10 mb-14">
-            <div class="qty"><button data-act="qty" data-delta="-1" aria-label="Decrease quantity">${icon('minus')}</button><span>${qty}</span><button data-act="qty" data-delta="1" aria-label="Increase quantity">${icon('plus')}</button></div>
-            <button class="btn btn--primary flex1" data-act="add" data-id="${p.id}" data-qty="${qty}">${icon('bag')} Add to cart · ${money(p.price * qty)}</button>
-          </div>` : `<div class="row gap-10 mb-14"><span class="pill pill--red">Sold out right now</span><span class="tiny muted">The shop updates stock in the Sell workspace.</span></div>`}
-          <button class="btn btn--ghost btn--block mb-10 ${saved ? 'btn--soft' : ''}" data-act="save" data-id="${p.id}">${icon('heart')} ${saved ? 'Saved for later' : 'Save for later'}</button>
-          <div class="notice notice--plain">${icon('shield')}<span>Demo storefront — no payment is taken and no real order is sent to the shop.</span></div>
-        </div>
-        ${card({ title: 'Pickup or delivery', body: `<div class="stack-sm">
-          <div class="radio-card on"><input type="radio" checked disabled /><div><b>Local delivery · from ₹0</b><small>Free above ₹199 · 15–35 min by nearby shop</small></div></div>
-          <div class="radio-card"><input type="radio" disabled /><div><b>Pickup · always free</b><small>Collect from ${esc(shop.area)} when ready</small></div></div>
-        </div>` })}
-        ${card({ title: 'Stock moves with the shop', sub: 'One catalogue, everywhere.', body: `<p class="small muted">This product lives in the Seller workspace catalogue. Change its stock there and this page updates instantly.</p><button class="btn btn--ghost btn--sm btn--block mt-10" data-act="switch" data-surface="sell" data-view="inventory">${icon('archive')} Check inventory</button>` })}
-      </aside>
+      <div class="pdetail-side-column">
+      <section class="pdetail-buy" aria-labelledby="productTitle">
+        <span class="pdetail-kicker">YOUR NEIGHBOURHOOD FIND</span>
+        <button class="pdetail-shoplink" data-act="nav" data-surface="shop" data-view="shop" data-id="${esc(shop.id)}">${icon('store')} ${esc(publicShop.name)} ${icon('arrowUpRight')}</button>
+        <h1 id="productTitle">${esc(p.name)}</h1>
+        <p class="pdetail-subtitle">${esc(p.detail || 'A local find from your neighbourhood shop.')}</p>
+        <div class="pdetail-rating">${icon('star')} <b>${shop.rating}</b><span>shop rating · demo</span><i></i><span>${shop.distance} km away</span></div>
+        <div class="pdetail-price"><b>${money(p.price)}</b>${p.mrp > p.price ? `<del>${money(p.mrp)}</del><span>${Math.round((1 - p.price / p.mrp) * 100)}% off</span>` : ''}</div>
+        <p class="pdetail-stock ${p.stock > 0 ? '' : 'is-out'}">${icon(p.stock > 0 ? 'checkCircle' : 'alert')} ${p.stock > 0 ? `${num(p.stock)} in stock · demo catalogue` : 'Out of stock right now'}</p>
+        ${p.stock > 0 ? `<div class="pdetail-buy__actions"><div class="qty"><button id="product-qty-decrease" data-act="qty" data-delta="-1" aria-label="Decrease quantity">${icon('minus')}</button><span aria-live="polite">${qty}</span><button id="product-qty-increase" data-act="qty" data-delta="1" aria-label="Increase quantity">${icon('plus')}</button></div><button id="product-add-to-cart" class="btn btn--primary" data-act="add" data-id="${esc(p.id)}" data-qty="${qty}">${icon('bag')} Add to cart · ${money(p.price * qty)}</button></div>` : `<p class="pdetail-out-note">The shop has not listed any stock for this item.</p>`}
+        <button id="product-save" class="pdetail-save" data-act="save" data-id="${esc(p.id)}" aria-pressed="${saved}">${icon('heart')} ${saved ? 'Saved for later' : 'Save for later'}</button>
+        <p class="pdetail-disclaimer">${icon('shield')} Demo only. No payment, order or delivery is sent to a real shop.</p>
+      </section>
+
+      <section class="pdetail-panel pdetail-delivery" aria-labelledby="productDeliveryTitle">
+        <div class="pdetail-panel__title"><div><span class="pdetail-kicker">AT YOUR CONVENIENCE</span><h2 id="productDeliveryTitle">Delivery details</h2></div>${icon('truck')}</div>
+        <div class="pdetail-destination">${icon('pin')}<span>Shopping in <b>${esc(areaLabel())}</b></span><button data-act="area">Change</button></div>
+        <div class="pdetail-service"><span>${icon('truck')}</span><div><b>Local delivery</b><small>Typical estimate: ${esc(shop.time)} · demo only</small></div></div>
+        <div class="pdetail-service"><span>${icon('store')}</span><div><b>Pickup from the shop</b><small>Free · ${esc(shop.area)}</small></div></div>
+        <p class="pdetail-fineprint">Delivery is ₹19, or free at ₹199 or more after discounts. Availability and coverage are not checked in this demo.</p>
+      </section>
+      <section class="pdetail-panel pdetail-highlights" aria-labelledby="productHighlightsTitle">
+        <span class="pdetail-kicker">THE LITTLE DETAILS</span><h2 id="productHighlightsTitle">Product highlights</h2>
+        <ul>${highlights.map((item) => `<li>${icon('checkCircle')}<span>${esc(item)}</span></li>`).join('')}</ul>
+      </section>
+      <section class="pdetail-panel pdetail-details" aria-labelledby="productDetailsTitle">
+        <span class="pdetail-kicker">EVERYTHING IN ONE PLACE</span><h2 id="productDetailsTitle">All details</h2>
+        <div class="pdetail-tabs" role="tablist" aria-label="Product details">${tabs.map(([key, label]) => `<button id="product-tab-${key}" role="tab" data-act="product-tab" data-tab="${key}" aria-selected="${activeTab === key}" aria-controls="product-tabpanel" tabindex="${activeTab === key ? '0' : '-1'}">${label}</button>`).join('')}</div>
+        <div id="product-tabpanel" class="pdetail-tabpanel" role="tabpanel" tabindex="0" aria-labelledby="product-tab-${activeTab}">${productDetailPanel(p, publicShop, activeTab)}</div>
+      </section>
+      </div>
     </div>
-    ${subHead('More from this shop', '', `<button class="link" data-act="nav" data-surface="shop" data-view="shop" data-id="${shop.id}">Visit shop ${icon('arrowRight')}</button>`)}
-    <div class="prod-grid">${related.map(productCard).join('')}</div>
+    ${related.length ? `<section class="pdetail-related" aria-labelledby="productRelatedTitle"><div class="pdetail-sectionhead"><div><span class="pdetail-kicker">MORE TO DISCOVER</span><h2 id="productRelatedTitle">Similar local finds</h2><p>More from this category and nearby shop.</p></div><button class="discover-text-link" data-act="category" data-cat="${esc(p.cat)}">Browse category ${icon('arrowRight')}</button></div><div class="prod-grid">${related.map((item) => productCard(item, { featureImage: true })).join('')}</div></section>` : ''}
   </div>`;
 }
 function shopCart() {
@@ -1113,7 +1301,7 @@ function shopCart() {
         <h2 style="font-size:15px">Order summary</h2>
         <div class="summary__row"><span>Subtotal</span><b>${money(totals.subtotal)}</b></div>
         <div class="summary__row"><span>Local delivery</span><b>${totals.delivery ? money(totals.delivery) : 'Free'}</b></div>
-        <div class="summary__row"><span>Coupon</span><b>Apply at checkout</b></div>
+        <div class="summary__row"><span>${totals.discount ? 'LOCAL10 discount' : 'Coupon'}</span><b>${totals.discount ? `−${money(totals.discount)}` : 'Apply at checkout'}</b></div>
         <div class="summary__total"><span>Total</span><span>${money(totals.total)}</span></div>
         <button class="btn btn--primary btn--block mt-6" data-act="nav" data-surface="shop" data-view="checkout">Go to checkout ${icon('arrowRight')}</button>
         <p class="hint" style="text-align:center">Demo checkout · no payment method is charged.</p>
@@ -1798,6 +1986,7 @@ function profileSeed() {
     ],
     business: {
       name: 'Green Basket Market', legalName: 'Green Basket Traders', type: 'Proprietorship',
+      publicOwnerName: '', publicPhone: '',
       category: 'Grocery and daily essentials',
       description: 'A neighbourhood grocery and daily-needs shop run by the same family since 2019, with fresh produce from the local mandi every morning.',
       year: '2019', outlets: '2', pan: 'ABCDE1234F', gstin: '07ABCDE1234F1Z5',
@@ -2265,6 +2454,11 @@ function sellProfileBusiness() {
           ${pfSelect('Business category', 'category', b.category, ['Grocery and daily essentials', 'Stationery and books', 'General store', 'Convenience store', 'Other eligible retail'])}
         </div>
         <label class="field"><span>Business description</span><textarea class="textarea" name="description" rows="3">${esc(b.description)}</textarea></label>
+        <div class="form-grid form-grid--2">
+          ${pfField('Public owner name', 'publicOwnerName', b.publicOwnerName || '', { required: false, maxlength: '80' })}
+          ${pfField('Public shop phone', 'publicPhone', b.publicPhone || '', { required: false, maxlength: '20', ph: 'Optional shop contact number' })}
+        </div>
+        <p class="hint">These optional fields appear to customers. Use demo values only; never enter private login or runner contact details.</p>
         <div class="form-grid form-grid--3">
           ${pfField('Year established', 'year', b.year, { inputmode: 'numeric', maxlength: '4' })}
           ${pfField('Number of outlets', 'outlets', b.outlets, { inputmode: 'numeric', maxlength: '2' })}
@@ -2289,6 +2483,8 @@ function sellProfileBusiness() {
           ${pfRow('Legal business name', esc(b.legalName))}
           ${pfRow('Business type', esc(b.type))}
           ${pfRow('Category', esc(b.category))}
+          ${pfRow('Public owner name', esc(b.publicOwnerName || 'Not provided'))}
+          ${pfRow('Public shop phone', esc(b.publicPhone || 'Not provided'))}
           ${pfRow('Year established', esc(b.year))}
           ${pfRow('Outlets', esc(b.outlets))}
           ${pfRow('Ownership', esc(b.ownership))}
@@ -2321,7 +2517,7 @@ function sellProfileBusiness() {
             <button class="btn btn--ghost btn--sm" data-act="doc-media" data-media="photos">${icon('plus')} ${b.photos ? 'Add' : 'Upload'}</button>
           </div>` })}
         ${card({ title: 'Approval rule', body: `${pfNotice('Legal name, PAN, GSTIN and document replacements are queued for operations review. Until approved they stay marked pending and the verified details remain in force.', 'plain')}` })}
-        ${card({ title: 'Used by', body: `<div class="stack-sm">${[['Customer portal', 'Shop name, category, storefront photo'], ['NearBuy Runner', 'Pickup contact and handover notes'], ['Payments', 'Verified legal name on settlements'], ['Operations', 'Verification and document review']].map(([t, s]) => `<div class="pf-mini"><b>${t}</b><span>${s}</span></div>`).join('')}</div><div class="notice notice--plain mt-10">${icon('lock')}<span>PAN, GSTIN and documents are never shown to customers or delivery partners.</span></div>` })}
+        ${card({ title: 'Used by', body: `<div class="stack-sm">${[['Customer portal', 'Shop name, location and optional public owner and phone'], ['NearBuy Runner', 'Pickup contact and handover notes'], ['Payments', 'Verified legal name on settlements'], ['Operations', 'Verification and document review']].map(([t, s]) => `<div class="pf-mini"><b>${t}</b><span>${s}</span></div>`).join('')}</div><div class="notice notice--plain mt-10">${icon('lock')}<span>PAN, GSTIN and documents are never shown to customers or delivery partners.</span></div>` })}
       </aside>
     </div>
   </div>`;
@@ -2475,14 +2671,18 @@ function profileSaveBusiness(fd) {
   const pan = String(fd.get('pan') || '').trim().toUpperCase();
   const gstin = String(fd.get('gstin') || '').trim().toUpperCase();
   const year = String(fd.get('year') || '').trim();
+  const publicOwnerName = String(fd.get('publicOwnerName') ?? b.publicOwnerName ?? '').trim();
+  const publicPhone = String(fd.get('publicPhone') ?? b.publicPhone ?? '').trim();
   if (name.length < 2) return 'Enter the shop name customers will see.';
+  if (publicOwnerName.length > 80) return 'Keep the public owner name under 80 characters.';
+  if (publicPhone && (!/^\+?[\d ()-]+$/.test(publicPhone) || !/^\d{8,15}$/.test(publicPhone.replace(/\D/g, '')))) return 'Enter a valid public shop phone number, or leave it blank.';
   if (legalName.length < 2) return 'Enter the registered legal business name.';
   if (year && !/^(19|20)\d{2}$/.test(year)) return 'Enter a valid four-digit year.';
   if (pan && !/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) return 'A PAN looks like ABCDE1234F. Leave it blank if not applicable.';
   if (gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z][0-9A-Z]Z[0-9A-Z]$/.test(gstin)) return 'That GSTIN does not look valid. Leave it blank if the shop is not registered.';
   const sensitive = pan !== b.pan || gstin !== b.gstin || legalName !== b.legalName;
   Object.assign(b, {
-    name, legalName, pan, gstin, year, type: String(fd.get('type') || b.type),
+    name, legalName, pan, gstin, year, publicOwnerName, publicPhone, type: String(fd.get('type') || b.type),
     category: String(fd.get('category') || b.category), description: String(fd.get('description') || '').trim(),
     outlets: String(fd.get('outlets') || b.outlets), ownership: String(fd.get('ownership') || b.ownership),
     regNumber: String(fd.get('regNumber') || '').trim(), licences: String(fd.get('licences') || '').trim(),
@@ -3426,7 +3626,7 @@ function markDeliveredFromPickup(order) {
 
 /* --------------------------------- modals --------------------------------- */
 function modalHead(title, sub = '') {
-  return `<div class="modal__head"><div><h2>${title}</h2>${sub ? `<p>${sub}</p>` : ''}</div><button class="modal__close" data-act="close" aria-label="Close">${icon('x')}</button></div>`;
+  return `<div class="modal__head"><div><h2 id="nearbuy-modal-title">${title}</h2>${sub ? `<p>${sub}</p>` : ''}</div><button class="modal__close" data-act="close" aria-label="Close">${icon('x')}</button></div>`;
 }
 function openLauncher() {
   const rows = Object.entries(SURFACES).map(([key, s]) => {
@@ -3556,13 +3756,42 @@ function openResetModal() {
     <div class="modal__body"><div class="notice">${icon('alert')}<span>Everything returns to the original sample data. This cannot be undone.</span></div></div>
     <div class="modal__foot"><button class="btn btn--ghost btn--sm" data-act="close">Keep my data</button><button class="btn btn--danger btn--sm" data-act="reset-yes">${icon('refresh')} Reset everything</button></div>`);
 }
+function readProductDetailForm(fd) {
+  const lines = (name) => String(fd.get(name) || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const highlights = lines('highlights');
+  const specLines = lines('specifications');
+  const imageLines = lines('images');
+  if (highlights.length > 6 || highlights.some((line) => line.length > 140)) return { error: 'Use up to six highlights, each under 140 characters.' };
+  if (specLines.length > 10) return { error: 'Use up to ten specification lines.' };
+  const specifications = [];
+  for (const line of specLines) {
+    const colon = line.indexOf(':');
+    const label = line.slice(0, colon).trim(), value = line.slice(colon + 1).trim();
+    if (colon < 1 || !value || label.length > 80 || value.length > 250) return { error: 'Write each specification as a short label followed by a colon and value.' };
+    specifications.push({ label, value });
+  }
+  if (imageLines.length > 4 || imageLines.some((line) => line.length > 2048 || !safeProductImageUrl(line))) return { error: 'Add up to four HTTPS image URLs (excluding localhost) or local /public/assets/ paths.' };
+  return { fields: {
+    description: String(fd.get('description') || '').trim().slice(0, 1500),
+    highlights, specifications, images: imageLines.map(safeProductImageUrl),
+    warranty: String(fd.get('warranty') || '').trim().slice(0, 500),
+    manufacturerName: String(fd.get('manufacturerName') || '').trim().slice(0, 120),
+    manufacturerAddress: String(fd.get('manufacturerAddress') || '').trim().slice(0, 300),
+    countryOfOrigin: String(fd.get('countryOfOrigin') || '').trim().slice(0, 80)
+  } };
+}
 function openProductForm(id) {
-  const p = id ? productById(id) : null;
+  const p = id ? state.catalogue.find((item) => item.id === id && item.shop === SELLER.shopId) : null;
+  if (id && !p) { toast('That product is no longer in your catalogue.', 'alert'); return; }
+  const highlights = Array.isArray(p?.highlights) ? p.highlights.join('\n') : '';
+  const specifications = Array.isArray(p?.specifications) ? p.specifications.map((item) => `${item.label}: ${item.value}`).join('\n') : '';
+  const images = Array.isArray(p?.images) ? p.images.join('\n') : '';
+  const opener = document.activeElement;
   openModal(`${modalHead(p ? 'Edit product' : 'Add a product', p ? 'Changes appear on the customer storefront instantly.' : 'A new product for Green Basket Market.')}
     <div class="modal__body"><form id="productForm" class="form-grid" data-id="${p ? p.id : ''}">
       <div class="form-grid form-grid--2">
         <label class="field"><span>Product name</span><input class="input" type="text" name="name" required value="${p ? esc(p.name) : ''}" placeholder="e.g. Alphonso mangoes" /></label>
-        <label class="field"><span>Emoji</span><input class="input" name="emoji" maxlength="4" value="${p ? p.emoji : '🥭'}" /></label>
+        <label class="field"><span>Emoji</span><input class="input" name="emoji" maxlength="4" value="${p ? esc(p.emoji) : '🥭'}" /></label>
       </div>
       <label class="field"><span>Short detail</span><input class="input" type="text" name="detail" value="${p ? esc(p.detail) : ''}" placeholder="e.g. Sweet & ripe · 1 kg" /></label>
       <div class="form-grid form-grid--2">
@@ -3577,8 +3806,24 @@ function openProductForm(id) {
         <label class="field"><span>Category</span><select class="select" name="cat">${CATEGORIES.filter((c) => c.id !== 'all').map((c) => `<option value="${c.id}" ${p && p.cat === c.id ? 'selected' : ''}>${c.label}</option>`).join('')}</select></label>
         <label class="field"><span>Badge (optional)</span><input class="input" type="text" name="badge" value="${p ? esc(p.badge || '') : ''}" placeholder="Fresh today" /></label>
       </div>
-      <button class="btn btn--primary">${icon('check')} ${p ? 'Save changes' : 'Add to catalogue'}</button>
-    </form></div>`);
+      <details class="product-form-details">
+        <summary>Product page details <small>Optional · visible to customers</small></summary>
+        <p class="product-form-details__error" data-product-error role="alert" hidden></p>
+        <div class="product-form-details__body form-grid">
+          <p class="hint">Add what you know. Empty fields are shown as not provided, rather than guessed.</p>
+          <label class="field"><span>Description</span><textarea class="textarea" name="description" maxlength="1500" rows="3" placeholder="Tell customers more about this item">${esc(p?.description || '')}</textarea></label>
+          <label class="field"><span>Product highlights</span><textarea class="textarea" name="highlights" rows="3" placeholder="One highlight per line, up to six">${esc(highlights)}</textarea></label>
+          <label class="field"><span>Specifications</span><textarea class="textarea" name="specifications" rows="3" placeholder="One per line, for example: Material: Cotton">${esc(specifications)}</textarea></label>
+          <label class="field"><span>Showcase image URLs</span><textarea class="textarea" name="images" rows="3" placeholder="One HTTPS image URL per line, up to four">${esc(images)}</textarea><small class="hint">Use only images you have permission to show. External image hosts receive an image request from viewers. Seed demo images are used when this is blank.</small></label>
+          <label class="field"><span>Warranty information</span><textarea class="textarea" name="warranty" maxlength="500" rows="2" placeholder="Warranty terms, if any">${esc(p?.warranty || '')}</textarea></label>
+          <div class="form-grid form-grid--2"><label class="field"><span>Manufacturer name</span><input class="input" name="manufacturerName" maxlength="120" value="${esc(p?.manufacturerName || '')}" /></label><label class="field"><span>Country of origin</span><input class="input" name="countryOfOrigin" maxlength="80" value="${esc(p?.countryOfOrigin || '')}" /></label></div>
+          <label class="field"><span>Manufacturer address</span><input class="input" name="manufacturerAddress" maxlength="300" value="${esc(p?.manufacturerAddress || '')}" /></label>
+        </div>
+      </details>
+      <button type="submit" class="btn btn--primary">${icon('check')} ${p ? 'Save changes' : 'Add to catalogue'}</button>
+    </form></div>`, 'modal--product');
+  ui.modal.returnFocus = opener;
+  document.querySelector('#productForm [name="name"]')?.focus();
 }
 function openPromoForm() {
   openModal(`${modalHead('New promotion', 'Demo campaigns only — no real discount is applied to a payment.')}
@@ -3781,20 +4026,28 @@ function handleAction(act, ds, el, event) {
     case 'admin-lock': clearAdminSession(); paint(); toast('Operations session cleared for this tab.', 'lock'); break;
     case 'save': {
       const on = state.saved.includes(ds.id);
+      const focusId = el?.id;
       state.saved = on ? state.saved.filter((x) => x !== ds.id) : [...state.saved, ds.id];
       save(); paint();
+      if (focusId) document.getElementById(focusId)?.focus();
       toast(on ? 'Removed from saved items.' : 'Saved for later.', 'heart');
       break;
     }
     case 'add': {
       const qty = Number(ds.qty || 1);
+      const focusId = el?.id;
       const line = state.cart.find((l) => l.id === ds.id);
       if (line) line.qty += qty; else state.cart.push({ id: ds.id, qty });
       save(); paint();
+      if (focusId) document.getElementById(focusId)?.focus();
       toast(`${productById(ds.id).name} added to cart.`, 'bag');
       break;
     }
     case 'qty': ui.qty = clamp((ui.qty || 1) + Number(ds.delta), 1, 20); refreshPage(); break;
+    case 'product-image': ui.productImageIndex = Math.max(0, Number(ds.index) || 0); refreshPage(); break;
+    case 'product-tab':
+      if (['specifications', 'description', 'warranty', 'manufacturer'].includes(ds.tab)) { ui.productTab = ds.tab; refreshPage(); }
+      break;
     case 'cart-qty': {
       const line = state.cart.find((l) => l.id === ds.id);
       if (!line) break;
@@ -3812,9 +4065,20 @@ function handleAction(act, ds, el, event) {
     }
     case 'method': ui.method = el.value; save(); refreshPage(); break;
     case 'filter-cat': ui.category = ds.cat; refreshPage(); break;
-    case 'clear-filters': ui.query = ''; ui.category = 'all'; refreshPage(); break;
-    case 'quick-search': ui.query = ds.q; go('shop', 'explore'); break;
-    case 'category': ui.category = ds.cat; go('shop', 'explore'); break;
+    case 'filter-stock': ui.exploreAvailable = !ui.exploreAvailable; refreshPage(); break;
+    case 'filter-deals': ui.exploreDeals = !ui.exploreDeals; refreshPage(); break;
+    case 'clear-filters': resetExploreFilters(); refreshPage(); break;
+    case 'discover-all': resetExploreFilters(); go('shop', 'explore'); break;
+    case 'discover-deals': resetExploreFilters(); ui.exploreDeals = true; go('shop', 'explore'); break;
+    case 'quick-search': resetExploreFilters(); ui.query = ds.q; go('shop', 'explore'); break;
+    case 'category': resetExploreFilters(); ui.category = ds.cat; go('shop', 'explore'); break;
+    case 'discover-offer': {
+      state.coupon = 'LOCAL10';
+      save(); paint();
+      $('[data-act="discover-offer"]')?.focus({ preventScroll: true });
+      toast('LOCAL10 added to your demo order. It will be ready at checkout.', 'tag');
+      break;
+    }
     case 'follow': {
       const followed = state.followed || (state.followed = []);
       const on = followed.includes(ds.id);
@@ -4861,7 +5125,7 @@ function handleSubmit(form, event) {
   const formId = form.id || form.dataset.form || '';
   switch (formId) {
     case 'hero-search': {
-      ui.category = 'all';
+      resetExploreFilters();
       ui.query = (fd.get('q') || '').toString();
       go('shop', 'explore');
       toast(ui.query ? `Showing results for “${ui.query}”.` : 'Showing everything nearby.', 'search');
@@ -4871,11 +5135,22 @@ function handleSubmit(form, event) {
     case 'otpForm': verifyPin(form.dataset.kind); break;
     case 'productForm': {
       const id = form.dataset.id;
+      const details = readProductDetailForm(fd);
+      if (details.error) {
+        const section = form.querySelector('.product-form-details');
+        const error = form.querySelector('[data-product-error]');
+        if (section) section.open = true;
+        if (error) { error.textContent = details.error; error.hidden = false; }
+        toast(details.error, 'alert');
+        break;
+      }
       if (id) {
-        const p = productById(id);
+        const p = state.catalogue.find((item) => item.id === id && item.shop === SELLER.shopId);
+        if (!p) { toast('That product is no longer in your catalogue.', 'alert'); break; }
         p.name = fd.get('name'); p.detail = fd.get('detail'); p.price = Number(fd.get('price'));
         p.mrp = Math.max(Number(fd.get('mrp')) || p.price, p.price); p.stock = Number(fd.get('stock'));
         p.lowAt = Number(fd.get('lowAt')); p.cat = fd.get('cat'); p.badge = fd.get('badge'); p.emoji = fd.get('emoji') || p.emoji;
+        Object.assign(p, details.fields);
         audit('Product updated', `${p.name} · ${money(p.price)} · stock ${p.stock}`, 'Seller demo');
         toast(`${p.name} updated across the storefront.`, 'package');
       } else {
@@ -4886,7 +5161,8 @@ function handleSubmit(form, event) {
           id: `p${nextNum}`, name: fd.get('name'), detail: fd.get('detail') || 'Nearby find',
           price: Number(fd.get('price')), mrp: Math.max(Number(fd.get('mrp')) || Number(fd.get('price')), Number(fd.get('price'))),
           cat, shop: SELLER.shopId, emoji: fd.get('emoji') || '🛒', tone: tones[cat] || 'tone-bread',
-          badge: fd.get('badge') || '', stock: Number(fd.get('stock')), lowAt: Number(fd.get('lowAt')) || 4, sold: 0
+          badge: fd.get('badge') || '', stock: Number(fd.get('stock')), lowAt: Number(fd.get('lowAt')) || 4, sold: 0,
+          ...details.fields
         };
         state.catalogue.push(p);
         notify('shop', 'New local find', `${p.name} is now available at Green Basket Market.`);
@@ -5024,9 +5300,19 @@ function handleSubmit(form, event) {
 }
 
 /* --------------------------------- events --------------------------------- */
+// The capture phase handles image load errors even though they do not bubble.
+document.addEventListener('error', (event) => {
+  const image = event.target;
+  if (image.tagName !== 'IMG' || !image.dataset.productImage) return;
+  image.hidden = true;
+  const fallback = image.nextElementSibling;
+  if (fallback?.hasAttribute('data-image-fallback')) fallback.hidden = false;
+}, true);
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-act]');
   if (!el) return;
+  // Do not cancel native controls inside a modal just because its backdrop has an action.
+  if (el.dataset.act === 'backdrop' && e.target !== el) return;
   if (['INPUT', 'SELECT', 'TEXTAREA', 'OPTION'].includes(el.tagName)) return;
   const isHashLink = el.tagName === 'A' && String(el.getAttribute('href') || '').startsWith('#');
   if (el.tagName === 'A' && !isHashLink && el.getAttribute('href') !== '#') return;
@@ -5075,6 +5361,26 @@ document.addEventListener('keydown', (e) => {
   const mod = e.metaKey || e.ctrlKey;
   if (mod && e.key.toLowerCase() === 'k') { e.preventDefault(); ui.palette ? closeModal() : openPalette(); return; }
   if (e.key === 'Escape') { if (ui.modal || ui.palette) closeModal(); else if (ui.drawer) { ui.drawer = false; syncDrawer(); } return; }
+  if (e.key === 'Tab' && ui.modal?.cls === 'modal--product') {
+    const dialog = document.querySelector('#overlay .modal--product');
+    const focusable = dialog ? Array.from(dialog.querySelectorAll('button:not([disabled]), input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, a[href], [tabindex]:not([tabindex="-1"])')).filter((item) => item.getClientRects().length) : [];
+    if (focusable.length) {
+      const first = focusable[0], last = focusable[focusable.length - 1], active = document.activeElement;
+      if (!dialog.contains(active) || (!e.shiftKey && active === last) || (e.shiftKey && active === first)) {
+        e.preventDefault(); (e.shiftKey ? last : first).focus();
+      }
+    }
+    return;
+  }
+  const productTab = e.target.closest?.('[data-act="product-tab"]');
+  if (!ui.modal && !ui.palette && productTab && ['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(e.key)) {
+    const tabs = ['specifications', 'description', 'warranty', 'manufacturer'];
+    const current = Math.max(0, tabs.indexOf(productTab.dataset.tab));
+    const next = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (current + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    e.preventDefault(); ui.productTab = tabs[next]; refreshPage();
+    document.getElementById(`product-tab-${tabs[next]}`)?.focus();
+    return;
+  }
   if (ui.palette) {
     const items = paletteMatches();
     if (e.key === 'ArrowDown') { e.preventDefault(); ui.palette.idx = clamp((ui.palette.idx || 0) + 1, 0, items.length - 1); renderOverlay(); }

@@ -8,7 +8,19 @@ A public, mobile-first marketing site for a neighbourhood commerce platform — 
 npm start
 ```
 
-Then open **http://localhost:4173** — no build step, no dependencies, no backend.
+Then open **http://localhost:4173** — no build step, no dependencies, no backend. To run the dependency-free regression tests (Node 18 or newer), use `npm test`.
+
+### Customer Discover
+
+After signing in to the customer portal, **Discover** brings neighbourhood shopping together with a search bar, category shortcuts, popular in-stock products, local shops, saved items and order tracking. Product search understands category names and multiple words; **Browse everything** also offers in-stock and deal filters. The **LOCAL10** demo offer can be applied from Discover and is reflected in the cart and checkout.
+
+The neighbourhood picker, products, prices, orders and offer are simulated; choosing an area does not perform a live coverage or GPS check. Changes stay in this browser.
+
+### Customer product details
+
+Every catalogue item has a product page at `#/shop/product/<id>` with a showcase, description, shop location and public contact fields, delivery and pickup information, highlights, specifications, warranty, manufacturer information and related finds. Missing information is explicitly marked as not provided; descriptions and highlights can fall back to the item's existing short detail. The first four original demo products have illustrative images, while other items show a placeholder until images are supplied. Delivery is ₹19 below ₹199 after discounts, free at or above ₹199; pickup is free. Availability and delivery coverage are not checked in this demo.
+
+For Green Basket products, sign in to **Seller → Products & catalogue** and open **Add product** or **Edit → Product page details** to provide optional descriptions, highlights, specifications, warranty, manufacturer details and up to four image URLs. URLs must be HTTPS (excluding localhost) or local `/public/assets/` paths; images are not uploaded. Viewers' browsers request any external image from its host, so use only images you are permitted to share. The seller can set optional, customer-visible owner and phone fields in **Manage profile → Business details**. These are separate from private login and runner contact details; other shops' missing public contacts remain unavailable. Use sample values only and do not call the displayed demo contacts.
 
 ---
 
@@ -185,7 +197,7 @@ There is deliberately no keyboard shortcut that jumps between portals — doing 
 
 ## Demo data
 
-All data is local sample data in `localStorage` (key `nearbuy.one.v2`). Nothing is sent anywhere.
+All catalogue and profile data is local sample data in `localStorage` (key `nearbuy.one.v2`). Forms do not submit it to a backend. If a seller adds an external showcase image URL, viewers' browsers request that image from its host.
 
 - Customer: **Riya Sharma** — Hauz Khas, South Delhi
 - Shop: **Green Basket Market** — owner Riya, manager Aarav, inventory Sana
