@@ -24,7 +24,7 @@ const DEFAULT_PROMOS = [{ id: 'LP-102', title: 'Neighbourhood welcome', code: 'H
 const DEFAULT_RETURNS = [{ id: 'RT-0084', order: 'NB-20452', customer: 'Nisha D.', product: 'Farm fresh whole milk', reason: 'Product arrived damaged', status: 'Needs review', amount: 34, date: 'Today, 9:12 am' }, { id: 'RT-0081', order: 'NB-20387', customer: 'Arjun K.', product: 'Seasonal red apples · 4 pcs', reason: 'Quality concern', status: 'Approved', amount: 119, date: 'Yesterday' }];
 const sellerStorage = {
   get(key, fallback) { try { const value = localStorage.getItem(`nearbuy-seller:${key}`); return value ? JSON.parse(value) : fallback; } catch { return fallback; } },
-  set(key, value) { try { localStorage.setItem(`nearbuy-seller:${key}`, JSON.stringify(value)); } catch {} }
+  set(key, value) { try { localStorage.setItem(`nearbuy-seller:${key}`, JSON.stringify(value)); return true; } catch { return false; } }
 };
 let sellerUser = sellerStorage.get('session', null);
 let view = 'dashboard';
@@ -39,7 +39,7 @@ function sellerMoney(amount) { return new Intl.NumberFormat('en-IN', { style: 'c
 function safe(value = '') { return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char])); }
 function sellerData(key, fallback) { return sellerStorage.get(`greenbasket:${key}`, fallback); }
 function saveSellerData(key, value) { sellerStorage.set(`greenbasket:${key}`, value); }
-function sellerProducts() { return sellerData('products', SEED_PRODUCTS); }
+function sellerProducts() { return sellerData('products', SEED_PRODUCTS).map(product => ({ listingStatus: 'Active', ...product })); }
 function sellerOrders() {
   const orders = sellerData('orders', SEED_ORDERS);
   let deliveryTasks = []; try { deliveryTasks = JSON.parse(localStorage.getItem('nearbuy-delivery:tasks') || '[]'); } catch {}
@@ -71,6 +71,8 @@ function updateSellerShell() {
   document.getElementById('sellerInitials').textContent = sellerUser.initials;
   const pending = sellerOrders().filter(order => order.status === 'New').length;
   document.getElementById('newOrderCount').textContent = pending;
+  const listingAttention = document.getElementById('listingAttention');
+  if (listingAttention) { const attention = sellerProducts().filter(product => ['Draft', 'Incomplete', 'Changes required', 'Rejected'].includes(listingState(product))).length; listingAttention.textContent = attention; listingAttention.hidden = !attention; }
   document.getElementById('sellerNotificationCount').textContent = Math.min(9, sellerData('notifications', [{ unread: true }, { unread: true }, { unread: true }]).filter(n => n.unread).length);
   document.querySelectorAll('[data-view]').forEach(button => {
     const page = button.dataset.view;
@@ -82,9 +84,9 @@ function updateSellerShell() {
 }
 function dashboardPage() {
   const products = sellerProducts(); const orders = sellerOrders(); const settings = sellerSettings();
-  const newOrders = orders.filter(order => order.status === 'New'); const low = products.filter(p => p.stock <= p.lowAt).slice(0, 4);
+  const newOrders = orders.filter(order => order.status === 'New'); const low = products.filter(p => listingState(p) === 'Active' && p.stock <= p.lowAt).slice(0, 4);
   const bars = [38, 56, 49, 72, 61, 85, 67];
-  return `${pageTitle('SAMPLE DASHBOARD · SOUTH DELHI', `Good morning, ${safe(sellerUser.name.split(' ')[0])}.`, 'Illustrative sample activity at Green Basket Market. These are not live shop figures.', '<button class="seller-btn" data-action="export-report">↓ Export report</button><button class="seller-btn primary" data-view="products" data-action="add-product">＋ Add product</button>')}<div class="seller-stats"><article class="stat-card"><div>Sales today <span class="stat-icon">₹</span></div><strong>₹8,460</strong><small><span class="positive">↑ 12.8%</span> vs. last Tuesday</small></article><article class="stat-card"><div>Orders today <span class="stat-icon">▤</span></div><strong>${orders.filter(o => o.placed.startsWith('Today')).length + 18}</strong><small><span class="positive">↑ 4 orders</span> vs. last Tuesday</small></article><article class="stat-card"><div>Need your attention <span class="stat-icon">◷</span></div><strong>${newOrders.length}</strong><small>New orders waiting for a response</small></article><article class="stat-card"><div>Net earnings <span class="stat-icon">↗</span></div><strong>₹7,184</strong><small>Next settlement · 18 Jun</small></article></div><div class="seller-grid-two"><section class="panel">${panelTitle('Sales at a glance', 'Your shop’s sales over the last 7 days', '<button data-view="analytics">View insights ↗</button>')}<div class="chart-wrap"><div class="chart-topline"><strong>₹42,680</strong><small>↑ 8.2%</small></div><div class="chart-caption"><span>vs. previous week</span><span>Last 7 days</span></div><div class="bar-chart">${bars.map((height, i) => `<div class="bar-column ${i === 5 ? 'today' : ''}"><i style="--bar:${height}%"></i><small>${['Wed','Thu','Fri','Sat','Sun','Mon','Tue'][i]}</small></div>`).join('')}</div><div class="chart-caption"><span>Shop sales · illustrative demo data</span><span class="seller-chart-legend"><i></i> Sales</span></div></div></section><section class="panel">${panelTitle('A little activity', 'Latest updates from your shop')}<div class="activity-list"><div class="activity-item"><span class="activity-icon">▤</span><div><b>3 new orders are ready for you</b><small>Just now · South Delhi neighbours</small></div><span>New</span></div><div class="activity-item"><span class="activity-icon">↗</span><div><b>Runner requested for NB-20479</b><small>3 minutes ago · Hauz Khas</small></div><span>On it</span></div><div class="activity-item"><span class="activity-icon">♡</span><div><b>A new 5-star shop review</b><small>Today · A happy local customer</small></div><span>New</span></div><div class="activity-item"><span class="activity-icon">₹</span><div><b>Settlement is on its way</b><small>Today · Expected 18 Jun</small></div><span>Paid</span></div></div></section></div><section class="panel" style="margin-bottom:14px">${panelTitle('Quick actions', 'The things you do most often')}<div class="quick-actions"><button class="quick-action" data-action="add-product"><span>＋</span>Add a product</button><button class="quick-action" data-view="orders"><span>▤</span>See new orders</button><button class="quick-action" data-view="inventory"><span>▥</span>Update stock</button><button class="quick-action" data-view="shop"><span>⌂</span>Shop settings</button></div></section><div class="seller-grid-two"><section class="panel">${panelTitle('Orders that need you', `${newOrders.length} new orders · respond soon`, '<button data-view="orders">All orders ↗</button>')}${newOrders.length ? newOrders.slice(0, 3).map(orderSummary).join('') : '<div class="seller-empty">You’re all caught up.</div>'}</section><section class="panel">${panelTitle('A few things are running low', 'Keep your local favourites on the shelf', '<button data-view="inventory">Manage stock ↗</button>')}<div class="table-overflow"><table class="dashboard-table"><thead><tr><th>PRODUCT</th><th>LEFT</th><th>STATUS</th></tr></thead><tbody>${low.map(p => `<tr><td><div class="prod-cell"><span class="prod-thumb">${p.emoji}</span><span><b>${safe(p.name)}</b><small>${p.sku}</small></span></div></td><td class="stock-low">${p.stock}</td><td>${pill(productStatus(p))}</td></tr>`).join('')}</tbody></table></div></section></div>`;
+  return `${pageTitle('SAMPLE DASHBOARD · SOUTH DELHI', `Good morning, ${safe(sellerUser.name.split(' ')[0])}.`, 'Illustrative sample activity at Green Basket Market. These are not live shop figures.', '<button class="seller-btn" data-action="export-report">↓ Export report</button><button class="seller-btn primary" data-view="products" data-action="add-product">＋ Add product</button>')}<div class="seller-stats"><article class="stat-card"><div>Sales today <span class="stat-icon">₹</span></div><strong>₹8,460</strong><small><span class="positive">↑ 12.8%</span> vs. last Tuesday</small></article><article class="stat-card"><div>Orders today <span class="stat-icon">▤</span></div><strong>${orders.filter(o => o.placed.startsWith('Today')).length + 18}</strong><small><span class="positive">↑ 4 orders</span> vs. last Tuesday</small></article><article class="stat-card"><div>Need your attention <span class="stat-icon">◷</span></div><strong>${newOrders.length}</strong><small>New orders waiting for a response</small></article><article class="stat-card"><div>Net earnings <span class="stat-icon">↗</span></div><strong>₹7,184</strong><small>Next settlement · 18 Jun</small></article></div><div class="seller-grid-two"><section class="panel">${panelTitle('Sales at a glance', 'Your shop’s sales over the last 7 days', '<button data-view="analytics">View insights ↗</button>')}<div class="chart-wrap"><div class="chart-topline"><strong>₹42,680</strong><small>↑ 8.2%</small></div><div class="chart-caption"><span>vs. previous week</span><span>Last 7 days</span></div><div class="bar-chart">${bars.map((height, i) => `<div class="bar-column ${i === 5 ? 'today' : ''}"><i style="--bar:${height}%"></i><small>${['Wed','Thu','Fri','Sat','Sun','Mon','Tue'][i]}</small></div>`).join('')}</div><div class="chart-caption"><span>Shop sales · illustrative demo data</span><span class="seller-chart-legend"><i></i> Sales</span></div></div></section><section class="panel">${panelTitle('A little activity', 'Latest updates from your shop')}<div class="activity-list"><div class="activity-item"><span class="activity-icon">▤</span><div><b>3 new orders are ready for you</b><small>Just now · South Delhi neighbours</small></div><span>New</span></div><div class="activity-item"><span class="activity-icon">↗</span><div><b>Runner requested for NB-20479</b><small>3 minutes ago · Hauz Khas</small></div><span>On it</span></div><div class="activity-item"><span class="activity-icon">♡</span><div><b>A new 5-star shop review</b><small>Today · A happy local customer</small></div><span>New</span></div><div class="activity-item"><span class="activity-icon">₹</span><div><b>Settlement is on its way</b><small>Today · Expected 18 Jun</small></div><span>Paid</span></div></div></section></div><section class="panel" style="margin-bottom:14px">${panelTitle('Quick actions', 'The things you do most often')}<div class="quick-actions"><button class="quick-action" data-action="add-product"><span>＋</span>Add a listing</button><button class="quick-action" data-view="orders"><span>▤</span>See new orders</button><button class="quick-action" data-view="inventory"><span>▥</span>Update stock</button><button class="quick-action" data-view="shop"><span>⌂</span>Shop settings</button></div></section><div class="seller-grid-two"><section class="panel">${panelTitle('Orders that need you', `${newOrders.length} new orders · respond soon`, '<button data-view="orders">All orders ↗</button>')}${newOrders.length ? newOrders.slice(0, 3).map(orderSummary).join('') : '<div class="seller-empty">You’re all caught up.</div>'}</section><section class="panel">${panelTitle('A few things are running low', 'Keep your local favourites on the shelf', '<button data-view="inventory">Manage stock ↗</button>')}<div class="table-overflow"><table class="dashboard-table"><thead><tr><th>PRODUCT</th><th>LEFT</th><th>STATUS</th></tr></thead><tbody>${low.map(p => `<tr><td><div class="prod-cell"><span class="prod-thumb">${p.emoji}</span><span><b>${safe(p.name)}</b><small>${p.sku}</small></span></div></td><td class="stock-low">${p.stock}</td><td>${pill(productStatus(p))}</td></tr>`).join('')}</tbody></table></div></section></div>`;
 }
 function orderSummary(order) { return `<article class="seller-order"><div class="seller-order-id"><b>${safe(order.id)} · ${safe(order.customer)}</b><small>${safe(order.placed)} · ${safe(order.area)}</small></div><div class="seller-order-items">${order.items.slice(0, 2).map(i => `${i.qty} × ${safe(i.name)}`).join(' · ')}${order.items.length > 2 ? ` <small>+ ${order.items.length - 2} more</small>` : ''}</div><div class="seller-order-total">${sellerMoney(order.total)}</div><div class="seller-order-actions"><button data-action="accept-order" data-id="${order.id}">Accept order</button><button data-action="view-order" data-id="${order.id}">Details</button></div></article>`; }
 function orderPage() {
@@ -92,13 +94,24 @@ function orderPage() {
   const filtered = orderFilter === 'All orders' ? orders : orders.filter(o => o.status === orderFilter);
   return `${pageTitle('YOUR SHOP, YOUR ORDERS', 'Orders', 'A clear view of every order from your neighbours.', '<button class="seller-btn" data-action="export-orders">↓ Export orders</button>')}<section class="panel">${panelTitle('Order queue', 'Confirm new orders and keep each one moving')}<div class="filter-tabs">${filters.map(f => `<button class="${orderFilter === f ? 'active' : ''}" data-action="order-filter" data-filter="${f}">${f}${f === 'New' ? ` <i>${orders.filter(o => o.status === 'New').length}</i>` : ''}</button>`).join('')}<label class="search-small"><span>⌕</span><input id="orderSearch" placeholder="Order ID or customer"/></label></div><div id="orderList" class="orders-list">${filtered.length ? filtered.map(orderSummary).join('') : '<div class="seller-empty"><b>No orders in this queue</b>New activity will show up here.</div>'}</div></section>`;
 }
-function productRow(p) { const state = productStatus(p); return `<tr><td><div class="prod-cell"><span class="prod-thumb">${p.emoji}</span><span><b>${safe(p.name)}</b><small>${safe(p.sku)} · ${safe(p.category)}</small></span></div></td><td>${sellerMoney(p.price)}</td><td>${p.stock}</td><td>${pill(state)}</td><td>${p.sold}</td><td><div class="product-row-actions"><button class="small-icon-btn" data-action="edit-product" data-id="${p.id}">Edit</button><button class="small-icon-btn" data-action="stock-product" data-id="${p.id}">Stock</button></div></td></tr>`; }
+function productRow(p) {
+  const state = listingState(p);
+  return `<tr><td><div class="prod-cell">${listingThumb(p)}<span><b>${safe(p.name)}</b><small>${safe(p.sku)} · ${safe(p.category)}${p.brand ? ` · ${safe(p.brand)}` : ''}</small></span></div></td><td>${listingPill(state)}${p.reviewNote ? `<small class="row-note">${safe(p.reviewNote)}</small>` : ''}</td><td>${sellerMoney(p.price)}${Number(p.mrp) > Number(p.price) ? `<small class="row-note"><s>${sellerMoney(p.mrp)}</s></small>` : ''}</td><td><b class="${p.stock <= p.lowAt ? 'stock-low' : 'stock-ok'}">${p.stock}</b><small class="row-note">${safe(stockLabel(p))}</small></td><td>${p.sold || 0}</td><td><div class="product-row-actions"><button class="small-icon-btn" data-action="edit-listing" data-id="${p.id}">Edit</button><button class="small-icon-btn" data-action="listing-menu" data-id="${p.id}" aria-label="More listing actions">⋯</button></div></td></tr>`;
+}
 function productPage() {
-  const products = sellerProducts().filter(p => `${p.name} ${p.sku} ${p.category}`.toLowerCase().includes(productQuery.toLowerCase()));
-  return `${pageTitle('YOUR ONLINE SHELF', 'Products & catalogue', `${sellerProducts().length} listings · Keep product details and prices up to date.`, '<button class="seller-btn" data-action="bulk-import">⇧ Bulk import</button><button class="seller-btn primary" data-action="add-product">＋ Add product</button>')}<section class="panel">${panelTitle('Your products', 'Changes to this demo catalogue stay in this browser.')}<div class="listing-toolbar"><div><label class="search-small"><span>⌕</span><input id="productSearch" value="${safe(productQuery)}" placeholder="Search products or SKU"/></label><select id="productCategory"><option value="all">All categories</option>${[...new Set(sellerProducts().map(p => p.category))].map(c => `<option>${safe(c)}</option>`).join('')}</select><select id="productState"><option value="all">All statuses</option><option>Active</option><option>Low stock</option><option>Out of stock</option></select></div><span class="eyebrow">${products.length} LISTINGS</span></div><div class="table-overflow"><table class="data-table"><thead><tr><th>PRODUCT</th><th>PRICE</th><th>STOCK</th><th>STATUS</th><th>UNITS SOLD</th><th>ACTIONS</th></tr></thead><tbody id="productRows">${products.map(productRow).join('') || '<tr><td colspan="6"><div class="seller-empty">No products found.</div></td></tr>'}</tbody></table></div></section>`;
+  const all = sellerProducts();
+  const active = all.filter(p => listingState(p) === 'Active');
+  const drafts = all.filter(p => ['Draft', 'Incomplete'].includes(listingState(p)));
+  const review = all.filter(p => listingState(p) === 'Under review');
+  const needsChanges = all.filter(p => ['Changes required', 'Rejected'].includes(listingState(p)));
+  const query = productQuery.toLowerCase();
+  const visible = all.filter(p => !query || `${p.name} ${p.sku} ${p.brand || ''} ${p.category}`.toLowerCase().includes(query));
+  const quality = catalogueQuality(all);
+  const categories = [...new Set(all.map(p => p.category))];
+  return `${pageTitle('YOUR ONLINE SHELF', 'Products & catalogue', `${all.length} listings · ${active.length} live · ${drafts.length + needsChanges.length} need your attention.`, '<button class="seller-btn" data-action="export-products">↓ Export catalogue</button><button class="seller-btn" data-action="bulk-import">⇧ Bulk import</button><button class="seller-btn primary" data-action="add-product">＋ Add listing</button>')}<div class="seller-stats"><article class="stat-card"><div>Live listings<span class="stat-icon">▧</span></div><strong>${active.length}</strong><small>Visible to nearby customers</small></article><article class="stat-card"><div>Drafts & incomplete<span class="stat-icon">✎</span></div><strong>${drafts.length}</strong><small>Finish these before submitting</small></article><article class="stat-card"><div>Under review<span class="stat-icon">◷</span></div><strong>${review.length}</strong><small>Waiting for a sample check</small></article><article class="stat-card"><div>Needs changes<span class="stat-icon">!</span></div><strong>${needsChanges.length}</strong><small>Fix the note and resubmit</small></article></div><section class="panel" style="margin-bottom:13px">${panelTitle('Add a listing', 'Choose the fastest way to get a product on your shelf')}${listingMethodCards()}<div class="listing-extra-rows"><div class="mini-block"><b>Copy an existing listing</b><small>Duplicate a product and change only what is different.</small><div class="mini-inline"><select id="copyListing">${all.map(p => `<option value="${p.id}">${safe(p.name)}</option>`).join('') || '<option value="">No listings yet</option>'}</select><button class="small-icon-btn" data-action="listing-copy-start">Copy ↗</button></div></div><div class="mini-block"><b>Barcode or SKU lookup</b><small>Demo lookup checks your local catalogue only.</small><div class="mini-inline"><input id="barcodeLookup" placeholder="e.g. GB-MILK-01"/><button class="small-icon-btn" data-action="listing-barcode-start">Look up ↗</button></div></div></div></section><section class="panel">${panelTitle('Your listings', 'Listing state and stock are separate — a live listing can still run out of stock.')}<div class="listing-toolbar"><div><label class="search-small"><span>⌕</span><input id="productSearch" value="${safe(productQuery)}" placeholder="Search products, brand or SKU"/></label><select id="productCategory"><option value="all">All categories</option>${categories.map(category => `<option>${safe(category)}</option>`).join('')}</select><select id="listingState"><option value="all">All listing states</option>${LISTING_STATES.map(state => `<option>${state}</option>`).join('')}</select><select id="productState"><option value="all">All stock states</option><option>Active</option><option>Low stock</option><option>Out of stock</option></select></div><span class="eyebrow" id="listingCount">${visible.length} LISTINGS</span></div><div class="table-overflow"><table class="data-table"><thead><tr><th>LISTING</th><th>LISTING STATUS</th><th>PRICE</th><th>STOCK</th><th>SOLD</th><th>ACTIONS</th></tr></thead><tbody id="productRows">${visible.map(productRow).join('') || '<tr><td colspan="6"><div class="seller-empty">No products found.</div></td></tr>'}</tbody></table></div></section><div class="two-panel" style="margin-top:13px"><section class="panel">${panelTitle('Catalogue quality', 'Small fixes that help neighbours choose')}<div class="quality-list">${quality.map(issue => `<div class="quality-row"><i>!</i><div><b>${issue.items.length} · ${issue.label}</b><small>${issue.detail}</small></div><button data-action="listing-fix" data-id="${issue.items[0].id}" data-step="${issue.step}">Fix ↗</button></div>`).join('') || '<div class="seller-empty">Every listing has the basics covered. Nice work.</div>'}</div></section><section class="panel">${panelTitle('Review queue', 'Sample NearBuy catalogue checks')}<div class="review-queue">${review.length ? review.map(p => `<div class="review-card"><div>${listingThumb(p)}<div><b>${safe(p.name)}</b><small>${safe(p.sku)} · ${safe(p.updatedAt || 'just now')}</small></div>${listingPill('Under review')}</div><div class="confirm-row"><button class="seller-btn" data-action="listing-request-changes" data-id="${p.id}">Ask for changes</button><button class="seller-btn primary" data-action="listing-approve" data-id="${p.id}">Approve (demo) ↗</button></div></div>`).join('') : '<div class="seller-empty"><b>Nothing waiting for review</b>Submitted listings appear here for a sample check.</div>'}</div></section></div>`;
 }
 function inventoryPage() {
-  const products = sellerProducts(); const low = products.filter(p => p.stock <= p.lowAt).length;
+  const products = sellerProducts().filter(p => listingState(p) !== 'Archived'); const low = products.filter(p => p.stock <= p.lowAt).length;
   return `${pageTitle('KEEP YOUR DIGITAL SHELF TRUE', 'Inventory & stock', `${low} products need a stock check. Stock changes apply instantly to this demo catalogue.`, '<button class="seller-btn" data-action="stock-audit">▤ Stock audit</button><button class="seller-btn primary" data-action="bulk-stock">⇧ Bulk update</button>')}<div class="seller-stats"><article class="stat-card"><div>Active products<span class="stat-icon">▧</span></div><strong>${products.filter(p => p.stock > 0).length}</strong><small>Available to local shoppers</small></article><article class="stat-card"><div>Low stock<span class="stat-icon">!</span></div><strong>${low}</strong><small>Below your restock reminder</small></article><article class="stat-card"><div>Out of stock<span class="stat-icon">×</span></div><strong>${products.filter(p => p.stock <= 0).length}</strong><small>Hidden from new orders</small></article><article class="stat-card"><div>Stock movements<span class="stat-icon">↕</span></div><strong>${sellerData('movements', []).length + 24}</strong><small>Demo history this month</small></article></div><section class="panel">${panelTitle('Stock by product', 'Use + / − to make a quick count adjustment')}<div class="listing-toolbar"><label class="search-small"><span>⌕</span><input id="inventorySearch" placeholder="Find a product"/></label><span class="eyebrow">LIVE DEMO STOCK</span></div><div class="table-overflow"><table class="data-table"><thead><tr><th>PRODUCT</th><th>SELLING PRICE</th><th>AVAILABLE</th><th>RESTOCK AT</th><th>STATUS</th><th>QUICK ADJUST</th></tr></thead><tbody id="inventoryRows">${products.map(p => `<tr><td><div class="prod-cell"><span class="prod-thumb">${p.emoji}</span><span><b>${safe(p.name)}</b><small>${safe(p.sku)}</small></span></div></td><td>${sellerMoney(p.price)}</td><td><b class="${p.stock <= p.lowAt ? 'stock-low' : 'stock-ok'}">${p.stock}</b></td><td>${p.lowAt} units</td><td>${pill(productStatus(p))}</td><td><div class="stock-control"><button data-action="adjust-stock" data-id="${p.id}" data-delta="-1" aria-label="Decrease stock">−</button><b>${p.stock}</b><button data-action="adjust-stock" data-id="${p.id}" data-delta="1" aria-label="Increase stock">+</button><button class="inline-link" data-action="set-stock" data-id="${p.id}">Set</button></div></td></tr>`).join('')}</tbody></table></div></section>`;
 }
 function sellerDeliveryTasks() { try { return JSON.parse(localStorage.getItem('nearbuy-delivery:tasks') || '[]'); } catch { return []; } }
@@ -190,11 +203,17 @@ function adjustStock(id, delta) {
 function exportCsv(filename, rows) { const content = rows.map(row => row.map(value => `"${String(value ?? '').replaceAll('"','""')}"`).join(',')).join('\n'); const blob = new Blob([content], { type:'text/csv;charset=utf-8' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = filename; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000); toast('Your demo CSV is ready.'); }
 function downloadProducts() { exportCsv('nearbuy-products-demo.csv', [['SKU','Product','Category','Price','Stock','Status'], ...sellerProducts().map(p=>[p.sku,p.name,p.category,p.price,p.stock,productStatus(p)])]); }
 function filterProductTable() {
-  const query = document.getElementById('productSearch')?.value.toLowerCase() || '';
-  const category = document.getElementById('productCategory')?.value || 'all'; const state = document.getElementById('productState')?.value || 'all';
-  const list = sellerProducts().filter(p => `${p.name} ${p.sku}`.toLowerCase().includes(query) && (category==='all'||p.category===category) && (state==='all'||productStatus(p)===state));
-  const tbody = document.getElementById('productRows'); if (tbody) tbody.innerHTML = list.map(productRow).join('') || '<tr><td colspan="6"><div class="seller-empty">No listings match those filters.</div></td></tr>';
+  const query = (document.getElementById('productSearch')?.value || '').toLowerCase();
+  const category = document.getElementById('productCategory')?.value || 'all';
+  const state = document.getElementById('listingState')?.value || 'all';
+  const stock = document.getElementById('productState')?.value || 'all';
+  const list = sellerProducts().filter(product => `${product.name} ${product.sku} ${product.brand || ''} ${product.category}`.toLowerCase().includes(query) && (category === 'all' || product.category === category) && (state === 'all' || listingState(product) === state) && (stock === 'all' || productStatus(product) === stock));
+  const tbody = document.getElementById('productRows');
+  if (tbody) tbody.innerHTML = list.map(productRow).join('') || '<tr><td colspan="6"><div class="seller-empty">No listings match those filters.</div></td></tr>';
+  const count = document.getElementById('listingCount');
+  if (count) count.textContent = `${list.length} LISTINGS`;
 }
+
 function sellerLogin(email, password) {
   const user = SELLER_USERS.find(item => item.email.toLowerCase() === email.toLowerCase().trim() && item.password === password);
   if (!user) { const node = document.getElementById('sellerLoginError'); if (node) node.textContent = 'That email and password do not match a demo seller account.'; return; }
@@ -206,6 +225,440 @@ function createPromoModal() {
 }
 function editStockModal(product) { openSellerModal(`<span class="eyebrow">INVENTORY ADJUSTMENT</span><h2>Update ${safe(product.name)}</h2><p>Current count: ${product.stock}. This stock change is saved in your browser.</p><form id="stockForm" class="modal-form"><input type="hidden" name="id" value="${product.id}"/><label>New available quantity<input type="number" min="0" name="stock" required value="${product.stock}"/></label><label>Reason<select name="reason"><option>Stock count</option><option>New stock received</option><option>Damaged or unsellable</option><option>Physical shop sale adjustment</option></select></label><button class="seller-btn primary">Save stock count ↗</button></form>`, ''); }
 
+/* =========================================================================
+   LISTING STUDIO
+   Add, edit, review and manage product listings inside the Seller Hub demo.
+   ========================================================================= */
+const LISTING_STATES = ['Draft', 'Incomplete', 'Under review', 'Changes required', 'Active', 'Paused', 'Rejected', 'Archived'];
+const LISTING_CATEGORIES = {
+  'Grocery': ['Staples & grains', 'Oils & masala', 'Snacks & biscuits', 'Beverages', 'Household essentials'],
+  'Fresh produce': ['Fruits', 'Vegetables', 'Herbs & leafy greens'],
+  'Bakery': ['Breads', 'Cakes & pastries', 'Cookies & rusks'],
+  'Dairy & eggs': ['Milk', 'Curd & paneer', 'Eggs', 'Butter & cheese'],
+  'Pantry': ['Honey & spreads', 'Sauces & condiments', 'Breakfast'],
+  'Stationery & books': ['Notebooks & pads', 'Pens & pencils', 'Art supplies', 'School books'],
+  'General store': ['Home care', 'Personal care', 'Kitchen basics']
+};
+const LISTING_UNITS = ['1 pc', 'pack of 2', 'pack of 6', '250 g', '500 g', '1 kg', '5 kg', '250 ml', '500 ml', '1 L', '1 bunch', '1 dozen'];
+const LISTING_ICONS = ['🛍️', '🥛', '🍞', '🥚', '🍎', '🍌', '🥬', '🍯', '🥣', '📓', '✏️', '📚', '🧴', '🧹', '🫙', '🍫', '☕', '🧻'];
+const LISTING_STEPS = [
+  { key: 'identity', label: 'Identity', hint: 'Pick the category and give the product a clear, specific name.' },
+  { key: 'details', label: 'Details', hint: 'Describe exactly what a neighbour receives when they order.' },
+  { key: 'photos', label: 'Photos', hint: 'Add clear photos. The first photo becomes the catalogue image.' },
+  { key: 'price', label: 'Price & stock', hint: 'Set the price, shelf stock and how this product reaches the customer.' },
+  { key: 'review', label: 'Review', hint: 'Check everything once more, then save a draft or submit it for review.' }
+];
+let listingWizard = null;
+let aiListingDraft = null;
+
+function listingState(product) { return product.listingStatus || 'Active'; }
+function listingPill(state) {
+  const tone = state === 'Active' ? '' : state === 'Under review' ? 'blue' : ['Draft', 'Incomplete', 'Changes required'].includes(state) ? 'warning' : state === 'Rejected' ? 'red' : 'neutral';
+  return `<span class="status-pill ${tone}">${safe(state)}</span>`;
+}
+function stockLabel(product) {
+  const stock = Number(product.stock) || 0;
+  const low = Number(product.lowAt) || 0;
+  if (stock <= 0) return 'Out of stock';
+  if (stock <= low) return 'Low stock';
+  return 'In stock';
+}
+function listingThumb(product) {
+  const image = (product.images || [])[0];
+  const art = image && image.src ? `<img src="${image.src}" alt=""/>` : (image && image.emoji) || product.emoji || '🛍️';
+  return `<span class="prod-thumb">${art}</span>`;
+}
+function blankListing() {
+  return {
+    id: '', sku: '', name: '', brand: '', category: 'Grocery', subcategory: '', barcode: '',
+    description: '', highlights: '', unit: '1 pc', netQty: '', origin: 'India', tax: '5', shelfLife: '',
+    emoji: '🛍️', price: '', mrp: '', stock: '', lowAt: '5', prep: '15–25 min',
+    delivery: true, pickup: true, aiUsed: false
+  };
+}
+function listingChecks(data) {
+  const highlights = String(data.highlights || '').split('\n').filter(line => line.trim());
+  return [
+    { key: 'name', step: 1, required: true, label: 'Product name is clear', fix: 'Add a product name of at least 3 characters.', ok: String(data.name || '').trim().length >= 3 },
+    { key: 'category', step: 1, required: true, label: 'Category and subcategory chosen', fix: 'Choose a category and subcategory.', ok: !!data.category && !!data.subcategory },
+    { key: 'brand', step: 1, required: true, label: 'Brand or maker recorded', fix: 'Add a brand, or use “Local / unbranded”.', ok: !!String(data.brand || '').trim() },
+    { key: 'description', step: 2, required: true, label: 'Description of 30+ characters', fix: 'Describe what the customer receives in at least 30 characters.', ok: String(data.description || '').trim().length >= 30 },
+    { key: 'unit', step: 2, required: true, label: 'Unit or pack size set', fix: 'Choose how this product is sold.', ok: !!data.unit },
+    { key: 'tax', step: 2, required: true, label: 'Tax rate selected', fix: 'Pick the applicable GST rate.', ok: data.tax !== '' && data.tax != null },
+    { key: 'photo', step: 3, required: true, label: 'At least one product photo', fix: 'Add a photo, or use the demo placeholder.', ok: (data.images || []).length > 0 },
+    { key: 'price', step: 4, required: true, label: 'Selling price entered', fix: 'Enter a selling price above zero.', ok: Number(data.price) > 0 },
+    { key: 'mrp', step: 4, required: true, label: 'MRP is not below the selling price', fix: 'Correct the MRP or the selling price.', ok: Number(data.mrp) > 0 && Number(data.mrp) >= Number(data.price) },
+    { key: 'stock', step: 4, required: true, label: 'Stock count entered', fix: 'Enter the stock you have on the shelf.', ok: data.stock !== '' && data.stock != null && Number(data.stock) >= 0 },
+    { key: 'fulfilment', step: 4, required: true, label: 'Delivery or pickup enabled', fix: 'Enable at least one fulfilment option.', ok: !!(data.delivery || data.pickup) },
+    { key: 'highlights', step: 2, required: false, label: 'Two or more highlights added', fix: 'Add short highlights customers can scan.', ok: highlights.length >= 2 }
+  ];
+}
+function masterMatches(query = '') {
+  const needle = query.toLowerCase();
+  return sellerProducts().filter(product => !needle || `${product.name} ${product.brand || ''} ${product.sku}`.toLowerCase().includes(needle)).slice(0, 6);
+}
+function masterResultsHtml(query = '') {
+  const matches = masterMatches(query);
+  if (!matches.length) return '<small class="field-hint">No matching product in your own catalogue. You can create a new product identity.</small>';
+  return matches.map(product => `<button type="button" class="master-chip" data-action="listing-use-master" data-id="${product.id}">${product.emoji || '🛍️'} ${safe(product.name)}</button>`).join('');
+}
+function listingPriceLine(data) {
+  const mrp = Number(data.mrp) || 0;
+  const price = Number(data.price) || 0;
+  if (!price) return '<span class="field-hint">Add a selling price to preview what customers will see.</span>';
+  if (mrp && price > mrp) return '<b class="price-warn">Selling price is above MRP.</b><small>Customers may read this as an incorrect price. Check both numbers before submitting.</small>';
+  const off = mrp > price ? Math.round((1 - price / mrp) * 100) : 0;
+  return `<b>Customers pay ${sellerMoney(price)}${off ? ` · ${off}% below MRP` : ''}</b><small>MRP ${sellerMoney(mrp || price)} · Commission, taxes and settlement are not calculated in this demo.</small>`;
+}
+function listingMethodCards(withSubModals = false) {
+  const cards = [
+    ['listing-create-manual', '✎', 'Add manually', 'A guided five-step listing form', 'Recommended'],
+    ['listing-ai-start', '✳', 'AI-assisted draft', 'Suggestions that you verify yourself', 'Rule-based demo'],
+    ['bulk-import', '⇧', 'Bulk spreadsheet', 'Paste rows for several products', 'Goes to review']
+  ];
+  if (withSubModals) cards.push(
+    ['listing-copy-modal', '⧉', 'Copy a listing', 'Start from something you already sell', 'Edit before submitting'],
+    ['listing-barcode-modal', '▥', 'Barcode / SKU', 'Look up a product or start with a code', 'Demo lookup']
+  );
+  return `<div class="listing-method-grid">${cards.map(([action, icon, title, text, note]) => `<button class="method-card" data-action="${action}"><span>${icon}</span><b>${title}</b><small>${text}</small><em>${note}</em></button>`).join('')}</div>`;
+}
+function catalogueQuality(products) {
+  return [
+    { label: 'Listings without a product photo', detail: 'A clear photo helps neighbours choose.', items: products.filter(product => !(product.images || []).length), step: 3 },
+    { label: 'Descriptions under 30 characters', detail: 'Explain what the customer receives.', items: products.filter(product => String(product.description || '').trim().length < 30), step: 2 },
+    { label: 'No brand or maker recorded', detail: 'Use “Local / unbranded” where there is no brand.', items: products.filter(product => !String(product.brand || '').trim()), step: 1 },
+    { label: 'Selling price above MRP', detail: 'Check the numbers before customers see them.', items: products.filter(product => Number(product.mrp) && Number(product.price) > Number(product.mrp)), step: 4 }
+  ].filter(issue => issue.items.length);
+}
+
+/* ---------- Starting a listing ---------- */
+function listingStartModal() {
+  openSellerModal(`<span class="eyebrow">LISTING STUDIO</span><h2>Add a listing</h2><p>Choose the fastest way to put a product on your digital shelf. Every listing is checked before nearby customers can see it.</p>${listingMethodCards(true)}<div class="demo-notice seller-demo-notice">Listings, photos and review decisions are stored only in this browser. No NearBuy catalogue review, barcode database or AI service is connected.</div>`, 'listing-start-modal');
+}
+function listingCopyModal() {
+  openSellerModal(`<span class="eyebrow">COPY A LISTING</span><h2>Start from something you already sell.</h2><p>Details, photos and price are copied into a new draft. Change what is different before submitting.</p><div class="modal-form"><label>Existing listing<select id="listingCopySelect">${sellerProducts().map(product => `<option value="${product.id}">${safe(product.name)} · ${safe(product.sku)}</option>`).join('')}</select></label><button class="seller-btn primary" data-action="listing-copy-start">Create a draft copy ↗</button></div>`);
+}
+function listingBarcodeModal() {
+  openSellerModal(`<span class="eyebrow">BARCODE / SKU LOOKUP · DEMO</span><h2>Look up a product.</h2><p>Enter a barcode or one of your own SKUs. This demo checks only your local catalogue — no real barcode database is connected.</p><div class="modal-form"><label>Barcode or SKU<input id="listingBarcodeInput" list="demoBarcodeList" placeholder="e.g. GB-MILK-01"/></label><datalist id="demoBarcodeList">${sellerProducts().map(product => `<option value="${safe(product.sku)}">${safe(product.name)}</option>`).join('')}</datalist><button class="seller-btn primary" data-action="listing-barcode-start">Look up ↗</button></div>`);
+}
+function listingCopyStart() {
+  const id = document.getElementById('listingCopySelect')?.value || document.getElementById('copyListing')?.value;
+  const product = sellerProducts().find(item => item.id === id);
+  if (!product) return toast('Choose a listing to copy.');
+  const preset = { ...product, name: `${product.name} (copy)`, sku: '', sold: 0, images: (product.images || []).map(image => ({ ...image })) };
+  startListingWizard('copy', null, preset, 1);
+  toast('Copied as a new draft. Check the details before submitting.');
+}
+function listingBarcodeStart() {
+  const value = String(document.getElementById('listingBarcodeInput')?.value || document.getElementById('barcodeLookup')?.value || '').trim();
+  if (!value) return toast('Enter a demo barcode or SKU to look up.');
+  const match = sellerProducts().find(product => product.sku.toLowerCase() === value.toLowerCase() || product.id.toLowerCase() === value.toLowerCase() || (product.barcode || '') === value);
+  if (match) {
+    startListingWizard('copy', null, { ...match, name: match.name, sku: '', sold: 0, barcode: match.barcode || value, images: (match.images || []).map(image => ({ ...image })) }, 1);
+    toast('Found in your catalogue — details are prefilled.');
+    return;
+  }
+  if (/^[A-Za-z0-9-]{4,}$/.test(value)) {
+    startListingWizard('manual', null, { barcode: value }, 1);
+    toast('No local catalogue match. Start a new listing with that code.');
+    return;
+  }
+  toast('Use one of your SKUs (like GB-MILK-01) or a code of 4+ characters.');
+}
+function startListingWizard(mode = 'manual', product = null, preset = {}, startStep = 1) {
+  const base = { ...blankListing(), ...(product || {}), ...preset };
+  const images = ((preset.images || product?.images || [])).map(image => ({ ...image }));
+  listingWizard = { step: Math.min(Math.max(Number(startStep) || 1, 1), LISTING_STEPS.length), mode, editingId: product?.id || null, data: base, images, errors: [] };
+  renderListingWizard();
+}
+
+/* ---------- AI-assisted draft (local rules only) ---------- */
+function aiListingModal() {
+  openSellerModal(`<span class="eyebrow">AI LISTING ASSISTANT · DEMO</span><h2>Start with a rough description.</h2><p>The sample assistant suggests a title, category and draft description. It never invents ingredients, dimensions, model numbers, warranties or certifications — you must verify every field before submitting.</p><form id="aiListingForm" class="modal-form"><label>What are you selling?<textarea name="prompt" required placeholder="e.g. Classmate A4 spiral notebook, 200 pages"></textarea></label><label>Preferred category<select name="category">${Object.keys(LISTING_CATEGORIES).map(category => `<option>${safe(category)}</option>`).join('')}</select></label><button class="seller-btn primary">Suggest a draft ↗</button></form><div class="demo-notice seller-demo-notice">No AI service is connected in this prototype. Suggestions come from simple keyword rules, and nothing is published automatically.</div>`);
+}
+function buildAiSuggestion(prompt, category) {
+  const clean = prompt.trim().replace(/\s+/g, ' ');
+  const lower = clean.toLowerCase();
+  const title = clean.charAt(0).toUpperCase() + clean.slice(1);
+  let guess = category;
+  if (/notebook|pencil|pen\b|eraser|stationery|art suppl|textbook|novel/.test(lower)) guess = 'Stationery & books';
+  else if (/milk|curd|paneer|egg|butter|cheese/.test(lower)) guess = 'Dairy & eggs';
+  else if (/bread|loaf|cake|cookie|bun|rusk/.test(lower)) guess = 'Bakery';
+  else if (/apple|banana|spinach|tomato|onion|potato|fruit|vegetable|herb/.test(lower)) guess = 'Fresh produce';
+  else if (/rice|atta|flour|dal|oil|masala|tea|coffee|snack|biscuit|soap|detergent/.test(lower)) guess = 'Grocery';
+  const subcategory = (LISTING_CATEGORIES[guess] || [''])[0];
+  return {
+    title,
+    category: guess,
+    subcategory,
+    description: `${title}, available from Green Basket Market in Hauz Khas. Add the pack size, quantity or material your neighbours need, and mention anything that helps them choose this product.`,
+    highlights: 'Available for local delivery or shop pickup\nAsk the shop if you need more product details',
+    notes: [
+      `Suggested category: ${guess} · ${subcategory}. Confirm it fits the product.`,
+      'Add the real brand, or choose “Local / unbranded”.',
+      'Replace the draft description with verified pack, material and quantity details.'
+    ]
+  };
+}
+function aiSuggestionModal(suggestion) {
+  openSellerModal(`<span class="eyebrow">SUGGESTED DRAFT · VERIFY BEFORE USE</span><h2>${safe(suggestion.title)}</h2><p>This is a starting point, not a finished listing. Nothing here is published until you complete the wizard and submit.</p><div class="ai-block"><b>Suggested description</b><p>${safe(suggestion.description)}</p></div><div class="review-checks">${suggestion.notes.map(note => `<div class="review-check"><i>!</i><div>${safe(note)}</div></div>`).join('')}</div><div class="confirm-row"><button class="seller-btn" data-action="listing-ai-restart">Start over</button><button class="seller-btn primary" data-action="listing-ai-use">Use this draft ↗</button></div>`, 'listing-ai-modal');
+}
+
+/* ---------- Wizard rendering ---------- */
+function renderListingWizard() {
+  const wizard = listingWizard;
+  if (!wizard) return;
+  const step = LISTING_STEPS[wizard.step - 1];
+  const checks = listingChecks({ ...wizard.data, images: wizard.images });
+  const missing = checks.filter(check => check.required && !check.ok).length;
+  const editingProduct = wizard.editingId ? sellerProducts().find(product => product.id === wizard.editingId) : null;
+  const draftLabel = editingProduct && ['Active', 'Paused', 'Under review'].includes(listingState(editingProduct)) ? 'Save changes' : 'Save draft';
+  const last = wizard.step === LISTING_STEPS.length;
+  const modeLabel = { manual: 'ADD MANUALLY', ai: 'AI-ASSISTED DRAFT', copy: 'COPIED LISTING', edit: 'EDITING LISTING' }[wizard.mode] || 'LISTING STUDIO';
+  openSellerModal(`<div class="wizard-shell"><div class="wizard-head"><span class="eyebrow">LISTING STUDIO · ${modeLabel}</span><h2>${wizard.editingId ? 'Edit listing' : 'Add a listing'}</h2><p>${step.hint}</p></div><div class="wizard-rail">${LISTING_STEPS.map((item, index) => `<button type="button" class="wizard-step ${index + 1 === wizard.step ? 'current' : ''} ${index + 1 < wizard.step ? 'done' : ''}" data-action="listing-goto-step" data-step="${index + 1}"><i>${index + 1 < wizard.step ? '✓' : index + 1}</i><span>${item.label}</span></button>`).join('')}</div><form class="wizard-form" id="listingStepForm"><div class="wizard-body">${wizard.errors.length ? `<div class="wizard-error"><b>Almost there — a few details need attention.</b><ul>${wizard.errors.map(error => `<li>${safe(error)}</li>`).join('')}</ul></div>` : ''}${listingStepBody(wizard)}</div><div class="wizard-foot"><button type="button" class="seller-btn" data-action="listing-back" ${wizard.step === 1 ? 'disabled' : ''}>← Back</button><span class="wizard-progress">Step ${wizard.step} of ${LISTING_STEPS.length} · checks ${checks.filter(check => check.ok).length}/${checks.length}<br/>${missing ? `${missing} required detail${missing === 1 ? '' : 's'} left` : 'Ready to submit'}</span><button type="submit" formnovalidate name="intent" value="draft" class="seller-btn">${draftLabel}</button><button type="submit" name="intent" value="${last ? 'submit' : 'next'}" class="seller-btn primary">${last ? 'Submit for review ↗' : 'Continue →'}</button></div></form></div>`, 'seller-modal-wide listing-wizard');
+}
+function listingStepBody(wizard) {
+  const d = wizard.data;
+  if (wizard.step === 1) {
+    const subcategories = LISTING_CATEGORIES[d.category] || [];
+    return `<div class="field-grid"><label>Category<select name="category" id="listingCategory" required>${Object.keys(LISTING_CATEGORIES).map(category => `<option${d.category === category ? ' selected' : ''}>${safe(category)}</option>`).join('')}</select></label><label>Subcategory<select name="subcategory" required><option value="">Choose a subcategory</option>${subcategories.map(subcategory => `<option${d.subcategory === subcategory ? ' selected' : ''}>${safe(subcategory)}</option>`).join('')}</select></label><label class="field-wide">Product name<input name="name" required minlength="3" maxlength="90" value="${safe(d.name)}" placeholder="e.g. Basmati rice · 1 kg"/></label><label>Brand or maker<input name="brand" required maxlength="60" value="${safe(d.brand)}" placeholder="e.g. India Gate, or Local / unbranded"/></label><label>Barcode or model (optional)<input name="barcode" maxlength="40" value="${safe(d.barcode)}" placeholder="e.g. 8901234567890"/></label><label>Seller SKU<input name="sku" maxlength="24" value="${safe(d.sku)}" placeholder="Leave blank to generate"/></label><label>Listing icon<select name="emoji">${LISTING_ICONS.map(icon => `<option${d.emoji === icon ? ' selected' : ''}>${icon}</option>`).join('')}</select></label></div><div class="master-box"><label>Find it in your catalogue<span class="field-hint">Prefills name, brand and category from a product you already sell. Price and stock stay under your control.</span><input type="search" id="listingMasterSearch" placeholder="Search products, brand or SKU"/></label><div class="master-results" id="masterResults">${masterResultsHtml(String(d.name || ''))}</div></div>`;
+  }
+  if (wizard.step === 2) {
+    return `<div class="field-grid"><label class="field-wide">Description<textarea name="description" required minlength="30" maxlength="600" placeholder="What does the customer receive? Include pack size, material or quantity where relevant.">${safe(d.description)}</textarea></label><label class="field-wide">Highlights · one per line<textarea name="highlights" maxlength="400" placeholder="200 pages&#10;Smooth 70 gsm paper">${safe(d.highlights)}</textarea></label><label>Unit or pack size<select name="unit" required>${LISTING_UNITS.map(unit => `<option${d.unit === unit ? ' selected' : ''}>${unit}</option>`).join('')}</select></label><label>Net quantity (optional)<input name="netQty" maxlength="30" value="${safe(d.netQty)}" placeholder="e.g. 200 pages, 500 g"/></label><label>Country of origin<input name="origin" maxlength="40" value="${safe(d.origin)}"/></label><label>GST rate<select name="tax" required>${['0', '5', '12', '18'].map(rate => `<option value="${rate}"${String(d.tax) === rate ? ' selected' : ''}>${rate}% GST</option>`).join('')}</select></label><label>Shelf life or best before (optional)<input name="shelfLife" maxlength="40" value="${safe(d.shelfLife)}" placeholder="e.g. 6 months from packing"/></label></div><span class="field-hint">Only add facts you can verify. In this demo nothing is checked against a real product database.</span>`;
+  }
+  if (wizard.step === 3) {
+    const notes = [];
+    if (!wizard.images.length) notes.push({ tone: 'warn', text: 'No photo yet — add one, or use the demo placeholder to continue.' });
+    wizard.images.forEach((image, index) => {
+      if (image.placeholder) notes.push({ tone: 'warn', text: `Image ${index + 1} is demo placeholder art. A real listing needs a real photo.` });
+      else {
+        if (image.w && image.w < 600) notes.push({ tone: 'warn', text: `Image ${index + 1} is ${image.w}×${image.h}px — 800×800px or larger looks sharper.` });
+        if (image.w && image.h && Math.abs(image.w - image.h) > image.w * 0.25) notes.push({ tone: 'warn', text: `Image ${index + 1} is not square — square photos crop best in the catalogue.` });
+      }
+    });
+    if (wizard.images.length && !notes.length) notes.push({ tone: 'ok', text: 'Photos look ready for this demo catalogue.' });
+    return `<div class="upload-grid">${wizard.images.map((image, index) => `<div class="image-tile">${index === 0 ? '<span class="primary-badge">PRIMARY</span>' : ''}${image.placeholder ? '<span class="tile-placeholder">DEMO</span>' : ''}${image.src ? `<img src="${image.src}" alt=""/>` : `<span class="tile-art">${image.emoji || d.emoji || '🛍️'}</span>`}<div class="tile-tools">${index > 0 ? `<button type="button" data-action="listing-img-primary" data-index="${index}">Make primary</button>` : ''}<button type="button" data-action="listing-img-remove" data-index="${index}">Remove</button></div></div>`).join('')}${wizard.images.length < 3 ? '<label class="upload-drop"><input type="file" id="listingImageInput" accept="image/*" multiple hidden/><span>＋</span>Add photo<small>Up to 3 · JPG or PNG</small></label>' : ''}</div><div class="image-checks">${notes.map(note => `<span class="${note.tone}">${safe(note.text)}</span>`).join('')}</div><div class="confirm-row"><button type="button" class="seller-btn" data-action="listing-add-placeholder">＋ Use a demo placeholder</button><button type="button" class="seller-btn" data-action="listing-goto-step" data-step="4">Continue to price</button></div><div class="demo-notice seller-demo-notice">Photos are resized in your browser and stored locally. Nothing is uploaded to a server in this prototype.</div>`;
+  }
+  if (wizard.step === 4) {
+    return `<div class="field-grid"><label>MRP (₹)<input id="mrpInput" name="mrp" type="number" min="0" step="1" required value="${safe(d.mrp)}" placeholder="e.g. 120"/></label><label>Selling price (₹)<input id="priceInput" name="price" type="number" min="1" step="1" required value="${safe(d.price)}" placeholder="e.g. 99"/></label><label>Stock on the shelf<input name="stock" type="number" min="0" step="1" required value="${safe(d.stock)}" placeholder="e.g. 12"/></label><label>Restock reminder at<input name="lowAt" type="number" min="0" step="1" value="${safe(d.lowAt)}"/></label><label>Preparation time<select name="prep">${['10–15 min', '15–25 min', '25–40 min', 'Same day'].map(time => `<option${d.prep === time ? ' selected' : ''}>${time}</option>`).join('')}</select></label></div><div class="price-preview" id="pricePreview">${listingPriceLine(d)}</div><div class="check-box"><span class="eyebrow">HOW THIS PRODUCT REACHES THE CUSTOMER</span><label class="check-row"><input type="checkbox" name="delivery" ${d.delivery ? 'checked' : ''}/><span><b>Local delivery</b><small>Offer this product for Runner or shop delivery.</small></span></label><label class="check-row"><input type="checkbox" name="pickup" ${d.pickup ? 'checked' : ''}/><span><b>Store pickup</b><small>Neighbours can collect from the shop.</small></span></label></div><span class="field-hint">Only one shop location exists in this demo. Multi-branch stock is outside this prototype.</span>`;
+  }
+  const checks = listingChecks({ ...d, images: wizard.images });
+  const highlights = String(d.highlights || '').split('\n').map(line => line.trim()).filter(Boolean);
+  return `<div class="review-grid">${listingPreviewCard({ ...d, images: wizard.images })}<div><span class="eyebrow">QUALITY CHECKS · ${checks.filter(check => check.ok).length}/${checks.length} PASSED</span><div class="review-checks">${checks.map(check => `<div class="review-check ${check.ok ? '' : 'fail'}"><i>${check.ok ? '✓' : '!'}</i><div>${safe(check.label)}${check.ok ? '' : `<small>${safe(check.fix)}</small>`}</div></div>`).join('')}</div></div></div>${String(d.description || '').trim() ? `<div><span class="eyebrow">WHAT CUSTOMERS WILL SEE</span><p class="review-desc">${safe(d.description)}</p>${highlights.length ? `<div class="tag-row">${highlights.map(line => `<span class="soft-tag">${safe(line)}</span>`).join('')}</div>` : ''}</div>` : ''}<div class="demo-notice">Submitting sends this listing to the sample review queue. An authorised teammate can approve it or ask for changes from Products &amp; catalogue. No real NearBuy moderation happens.</div>`;
+}
+function listingPreviewCard(data) {
+  const images = data.images || [];
+  const first = images[0];
+  const art = first ? (first.src ? `<img src="${first.src}" alt=""/>` : `<span>${first.emoji || '🛍️'}</span>`) : `<span>${data.emoji || '🛍️'}</span>`;
+  const price = Number(data.price) || 0;
+  const mrp = Number(data.mrp) || price;
+  const off = mrp > price && price > 0 ? Math.round((1 - price / mrp) * 100) : 0;
+  const stock = Number(data.stock);
+  const delivery = data.delivery !== false;
+  const pickup = data.pickup !== false;
+  return `<div class="review-preview"><div class="review-art">${art}</div><div class="review-copy"><span class="eyebrow">${safe(String(data.brand || 'LOCAL SHOP').toUpperCase())} · ${safe(data.category || 'CATEGORY')}</span><b>${safe(data.name || 'Your product name')}</b><div class="price-line"><strong>${price ? sellerMoney(price) : '₹ —'}</strong>${mrp > price ? `<s>${sellerMoney(mrp)}</s><span class="offer-tag">${off}% off</span>` : ''}</div><small>${safe(data.unit || 'Unit not set')} · ${stock > 0 ? `${stock} available` : 'Out of stock'}</small><small>${delivery ? '↗ Local delivery' : ''}${delivery && pickup ? ' · ' : ''}${pickup ? '⌂ Pickup' : ''}${!delivery && !pickup ? 'No fulfilment selected' : ''}</small><small>${safe(data.prep || '15–25 min')} preparation</small></div></div>`;
+}
+
+/* ---------- Capturing and saving ---------- */
+function captureListingStep(form) {
+  if (!listingWizard) return;
+  const data = new FormData(form);
+  for (const [key, value] of data.entries()) {
+    if (key === 'intent') continue;
+    listingWizard.data[key] = typeof value === 'string' ? value : value;
+  }
+  form.querySelectorAll('input[type="checkbox"]').forEach(box => { listingWizard.data[box.name] = box.checked; });
+}
+function saveListing(intent) {
+  const wizard = listingWizard;
+  if (!wizard) return;
+  const checks = listingChecks({ ...wizard.data, images: wizard.images });
+  const missing = checks.filter(check => check.required && !check.ok);
+  if (intent === 'submit' && missing.length) {
+    wizard.errors = missing.map(check => check.fix);
+    renderListingWizard();
+    toast(`${missing.length} detail${missing.length === 1 ? '' : 's'} still need attention.`);
+    return;
+  }
+  if (intent !== 'submit' && !wizard.editingId && String(wizard.data.name || '').trim().length < 3) {
+    wizard.errors = ['Add a product name before saving this draft.'];
+    renderListingWizard();
+    toast('Add a product name before saving this draft.');
+    return;
+  }
+  const existing = wizard.editingId ? sellerProducts().find(product => product.id === wizard.editingId) : null;
+  const prior = existing ? listingState(existing) : null;
+  let status = 'Under review';
+  let note = 'Submitted for a sample NearBuy catalogue check.';
+  if (intent !== 'submit') {
+    if (missing.length && prior && ['Active', 'Paused'].includes(prior)) {
+      status = prior;
+      note = `${missing.length} required detail${missing.length === 1 ? '' : 's'} still missing — ${missing[0].fix}`;
+    } else if (missing.length) {
+      status = 'Incomplete';
+      note = `${missing.length} required detail${missing.length === 1 ? '' : 's'} still missing.`;
+    } else if (prior && ['Active', 'Paused', 'Under review'].includes(prior)) {
+      status = prior;
+      note = 'Listing details updated by the shop in this demo.';
+    } else {
+      status = 'Draft';
+      note = 'Saved as a draft — not visible to customers.';
+    }
+  }
+  persistListing(wizard, status, note);
+  toast(intent === 'submit' ? 'Listing submitted to the sample review queue.' : 'Listing saved in this browser.');
+}
+function persistListing(wizard, status, note) {
+  const products = sellerProducts();
+  const id = wizard.editingId || `NB-${Date.now().toString().slice(-6)}`;
+  const existing = products.find(product => product.id === id);
+  const d = wizard.data;
+  const stock = Number(d.stock) || 0;
+  const history = [...(existing?.history || []), { status, note, at: new Date().toLocaleString('en-IN'), by: sellerUser.name }];
+  const product = {
+    ...(existing || {}),
+    id,
+    sku: String(d.sku || existing?.sku || '').trim() || `GB-${Date.now().toString().slice(-5)}`,
+    name: String(d.name || '').trim(),
+    brand: String(d.brand || '').trim(),
+    category: d.category,
+    subcategory: d.subcategory || '',
+    barcode: d.barcode || '',
+    description: String(d.description || '').trim(),
+    highlights: d.highlights || '',
+    unit: d.unit || '',
+    netQty: d.netQty || '',
+    origin: d.origin || '',
+    tax: d.tax || '',
+    shelfLife: d.shelfLife || '',
+    emoji: d.emoji || '🛍️',
+    images: wizard.images.slice(0, 3),
+    price: Number(d.price) || 0,
+    mrp: Number(d.mrp) || Number(d.price) || 0,
+    stock,
+    lowAt: Number(d.lowAt) || 5,
+    sold: existing?.sold || 0,
+    status: stock > 0 ? 'Active' : 'Out of stock',
+    prep: d.prep || '15–25 min',
+    delivery: !!d.delivery,
+    pickup: !!d.pickup,
+    listingStatus: status,
+    reviewNote: note,
+    createdAt: existing?.createdAt || new Date().toLocaleString('en-IN'),
+    updatedAt: new Date().toLocaleString('en-IN'),
+    history
+  };
+  let next = existing ? products.map(item => (item.id === id ? product : item)) : [product, ...products];
+  let saved = saveSellerData('products', next);
+  if (!saved && product.images.length) {
+    product.images = [{ placeholder: true, emoji: d.emoji || '🛍️' }];
+    next = existing ? products.map(item => (item.id === id ? product : item)) : [product, ...products];
+    saved = saveSellerData('products', next);
+    if (saved) toast('This browser could not keep those photos, so a placeholder was saved instead.');
+  }
+  if (!saved) toast('This browser could not store the listing. Try removing photos and saving again.');
+  listingWizard = null;
+  closeSellerModal();
+  goView('products');
+  return saved;
+}
+function setListingStatus(id, status, note) {
+  const products = sellerProducts();
+  const target = products.find(product => product.id === id);
+  if (!target) return;
+  const history = [...(target.history || []), { status, note, at: new Date().toLocaleString('en-IN'), by: sellerUser.name }];
+  const next = products.map(product => (product.id === id ? { ...product, listingStatus: status, reviewNote: note, updatedAt: new Date().toLocaleString('en-IN'), history } : product));
+  saveSellerData('products', next);
+  closeSellerModal();
+  renderSeller();
+}
+
+/* ---------- Listing management screens ---------- */
+function listingMenuModal(product) {
+  if (!product) return;
+  const state = listingState(product);
+  return openSellerModal(`<span class="eyebrow">LISTING · ${safe(product.sku)}</span><h2>${safe(product.name)}</h2><p>${listingPill(state)} ${product.reviewNote ? safe(product.reviewNote) : 'Manage this listing in the demo catalogue.'}</p><div class="listing-menu"><button data-action="edit-listing" data-id="${product.id}"><span>✎</span>Edit listing details</button><button data-action="listing-preview" data-id="${product.id}"><span>◉</span>Preview as a nearby customer</button><button data-action="edit-product" data-id="${product.id}"><span>▥</span>Quick edit price and stock</button>${['Active', 'Paused'].includes(state) ? `<button data-action="listing-toggle-pause" data-id="${product.id}"><span>${state === 'Active' ? '❙❙' : '▶'}</span>${state === 'Active' ? 'Pause this listing' : 'Resume this listing'}</button>` : ''}${['Draft', 'Incomplete', 'Changes required', 'Rejected'].includes(state) ? `<button data-action="listing-submit" data-id="${product.id}"><span>↗</span>Submit for review</button>` : ''}<button data-action="listing-duplicate" data-id="${product.id}"><span>⧉</span>Duplicate as a new draft</button><button data-action="listing-archive" data-id="${product.id}"><span>▤</span>Archive this listing</button>${['Draft', 'Incomplete'].includes(state) ? `<button data-action="listing-discard" data-id="${product.id}"><span>×</span>Discard this draft</button>` : ''}</div><div class="demo-notice seller-demo-notice">Every action updates only this browser’s sample catalogue.</div>`, 'listing-menu-modal');
+}
+function listingPreviewModal(product) {
+  if (!product) return;
+  const checks = listingChecks({ ...product, images: product.images || [] });
+  const history = (product.history || []).slice(-4).reverse();
+  const facts = [
+    ['Listing state', listingPill(listingState(product))],
+    ['SKU', safe(product.sku)],
+    ['Category', `${safe(product.category || '—')}${product.subcategory ? ` · ${safe(product.subcategory)}` : ''}`],
+    ['Brand', safe(product.brand || 'Not recorded')],
+    ['Unit', safe(product.unit || 'Not recorded')],
+    ['GST', product.tax !== undefined && product.tax !== '' ? `${safe(product.tax)}%` : 'Not recorded'],
+    ['Stock', `${Number(product.stock) || 0} available${Number(product.stock) <= Number(product.lowAt || 0) ? ' · restock soon' : ''}`],
+    ['Fulfilment', `${product.delivery !== false ? 'Delivery' : ''}${product.delivery !== false && product.pickup !== false ? ' · ' : ''}${product.pickup !== false ? 'Pickup' : ''}` || 'Not set'],
+    ['Updated', safe(product.updatedAt || 'Not saved yet')]
+  ];
+  openSellerModal(`<span class="eyebrow">CUSTOMER PREVIEW</span><h2>${safe(product.name)}</h2><p>This is how the listing appears in this demo storefront. Prices and stock stay under your control.</p>${listingPreviewCard({ ...product, images: product.images || [] })}<div class="two-panel" style="margin-top:13px"><div><span class="eyebrow">LISTING DETAILS</span><div class="listing-facts">${facts.map(([label, value]) => `<div><span>${label}</span><b>${value}</b></div>`).join('')}</div></div><div><span class="eyebrow">QUALITY CHECKS</span><div class="review-checks">${checks.map(check => `<div class="review-check ${check.ok ? '' : 'fail'}"><i>${check.ok ? '✓' : '!'}</i><div>${safe(check.label)}${check.ok ? '' : `<small>${safe(check.fix)}</small>`}</div></div>`).join('')}</div></div></div>${history.length ? `<div><span class="eyebrow">LISTING ACTIVITY</span><div class="listing-timeline">${history.map(event => `<div class="timeline-item"><i></i><div><b>${safe(event.status)}</b>${safe(event.note || '')} · ${safe(event.at)}</div></div>`).join('')}</div></div>` : ''}<div class="confirm-row"><button class="seller-btn" data-action="modal-close">Close</button><button class="seller-btn primary" data-action="edit-listing" data-id="${product.id}">Edit listing ↗</button></div>`, 'listing-preview-modal');
+}
+function listingChangesModal(product) {
+  openSellerModal(`<span class="eyebrow">SAMPLE CATALOGUE REVIEW</span><h2>Ask for changes</h2><p>${safe(product.name)} · ${safe(product.sku)}</p><form id="listingChangesForm" class="modal-form"><input type="hidden" name="id" value="${product.id}"/><label>What needs fixing?<select name="reason"><option>Primary image is unclear or missing</option><option>Product title could be clearer</option><option>Description is missing key details</option><option>Category looks incorrect</option><option>Price or MRP looks wrong</option><option>Something else (add a note)</option></select></label><label>Note for the shop (optional)<textarea name="note" placeholder="Say exactly what to fix so it can be corrected quickly."></textarea></label><button class="seller-btn primary">Send back for changes ↗</button></form>`);
+}
+function duplicateListing(id) {
+  const products = sellerProducts();
+  const source = products.find(product => product.id === id);
+  if (!source) return;
+  const copy = {
+    ...source,
+    id: `NB-${Date.now().toString().slice(-6)}`,
+    sku: `${source.sku || 'GB'}-C${Date.now().toString().slice(-3)}`,
+    name: `${source.name} (copy)`,
+    sold: 0,
+    listingStatus: 'Draft',
+    reviewNote: `Copied from ${source.sku}. Update the details before submitting.`,
+    createdAt: new Date().toLocaleString('en-IN'),
+    updatedAt: new Date().toLocaleString('en-IN'),
+    history: [{ status: 'Draft', note: `Copied from ${source.name}.`, at: new Date().toLocaleString('en-IN'), by: sellerUser.name }]
+  };
+  saveSellerData('products', [copy, ...products]);
+  closeSellerModal();
+  renderSeller();
+  toast('A draft copy was added to this demo catalogue.');
+}
+
+/* ---------- Image handling ---------- */
+function handleListingImages(files) {
+  if (!listingWizard) return;
+  const room = 3 - listingWizard.images.length;
+  if (room <= 0) return toast('This demo keeps up to three photos per listing.');
+  [...files].slice(0, room).forEach(file => {
+    if (!file.type.startsWith('image/')) return toast('Only image files can be added.');
+    if (file.size > 4 * 1024 * 1024) return toast('That file is larger than 4 MB. Use a smaller image.');
+    const reader = new FileReader();
+    reader.onload = () => {
+      const source = String(reader.result || '');
+      const image = new Image();
+      image.onload = () => addListingImage(source, image, file.name);
+      image.onerror = () => toast('That image could not be read.');
+      image.src = source;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+function addListingImage(source, image, name) {
+  if (!listingWizard) return;
+  const max = 640;
+  const scale = Math.min(1, max / Math.max(image.width || 1, image.height || 1));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round((image.width || 1) * scale));
+  canvas.height = Math.max(1, Math.round((image.height || 1) * scale));
+  let src = source;
+  try {
+    const context = canvas.getContext('2d');
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    src = canvas.toDataURL('image/jpeg', 0.78);
+  } catch {}
+  listingWizard.images.push({ src, name, w: canvas.width, h: canvas.height, placeholder: false });
+  listingWizard.errors = [];
+  renderListingWizard();
+  toast('Photo added to this demo listing.');
+}
+
 // Navigation and action delegation keeps all rendered screens interactive.
 document.addEventListener('click', event => {
   const target = event.target.closest('[data-view],[data-action],[data-seller-demo]'); if (!target) return;
@@ -213,8 +666,43 @@ document.addEventListener('click', event => {
   if (target.dataset.view && !target.dataset.action) { goView(target.dataset.view); return; }
   const action = target.dataset.action;
   if (action === 'modal-close' || (action === 'modal-backdrop' && event.target === target)) closeSellerModal();
-  else if (action === 'add-product') productModal();
+  else if (action === 'add-product') listingStartModal();
   else if (action === 'edit-product') productModal(sellerProducts().find(p=>p.id===target.dataset.id));
+  else if (action === 'listing-create-manual') { closeSellerModal(); startListingWizard('manual'); }
+  else if (action === 'listing-ai-start') aiListingModal();
+  else if (action === 'listing-copy-modal') listingCopyModal();
+  else if (action === 'listing-barcode-modal') listingBarcodeModal();
+  else if (action === 'listing-copy-start') listingCopyStart();
+  else if (action === 'listing-barcode-start') listingBarcodeStart();
+  else if (action === 'listing-ai-restart') aiListingModal();
+  else if (action === 'listing-ai-use') { if (!aiListingDraft) return aiListingModal(); const draft = aiListingDraft; aiListingDraft = null; closeSellerModal(); startListingWizard('ai', null, { name: draft.title, category: draft.category, subcategory: draft.subcategory, description: draft.description, highlights: draft.highlights, aiUsed: true }, 1); toast('Draft added. Verify every field before submitting.'); }
+  else if (action === 'listing-use-master') { const master = sellerProducts().find(p=>p.id===target.dataset.id); if (master && listingWizard) { listingWizard.data = { ...listingWizard.data, name: master.name, brand: master.brand || 'Local / unbranded', category: master.category, subcategory: master.subcategory || (LISTING_CATEGORIES[master.category]||[''])[0], barcode: master.barcode || '', emoji: master.emoji || listingWizard.data.emoji }; listingWizard.errors = []; renderListingWizard(); toast('Catalogue details added — check them before submitting.'); } }
+  else if (action === 'listing-back') { if (listingWizard && listingWizard.step > 1) { const stepForm = document.getElementById('listingStepForm'); if (stepForm) captureListingStep(stepForm); listingWizard.step -= 1; listingWizard.errors = []; renderListingWizard(); } }
+  else if (action === 'listing-goto-step') { if (listingWizard) { const stepForm = document.getElementById('listingStepForm'); if (stepForm) captureListingStep(stepForm); listingWizard.step = Math.min(LISTING_STEPS.length, Math.max(1, Number(target.dataset.step) || 1)); listingWizard.errors = []; renderListingWizard(); } }
+  else if (action === 'listing-img-primary') { if (listingWizard) { const index = Number(target.dataset.index); const image = listingWizard.images[index]; if (image) { listingWizard.images.splice(index, 1); listingWizard.images.unshift(image); renderListingWizard(); toast('Primary photo updated in this demo.'); } } }
+  else if (action === 'listing-img-remove') { if (listingWizard) { listingWizard.images.splice(Number(target.dataset.index), 1); listingWizard.errors = []; renderListingWizard(); } }
+  else if (action === 'listing-add-placeholder') { if (listingWizard) { if (listingWizard.images.length >= 3) toast('This demo keeps up to three photos per listing.'); else { listingWizard.images.push({ placeholder: true, emoji: listingWizard.data.emoji || '🛍️' }); listingWizard.errors = []; renderListingWizard(); } } }
+  else if (action === 'edit-listing') { const product = sellerProducts().find(p=>p.id===target.dataset.id); if (product) startListingWizard('edit', product, {}, 1); }
+  else if (action === 'listing-menu') listingMenuModal(sellerProducts().find(p=>p.id===target.dataset.id));
+  else if (action === 'listing-preview') listingPreviewModal(sellerProducts().find(p=>p.id===target.dataset.id));
+  else if (action === 'listing-toggle-pause') { const product = sellerProducts().find(p=>p.id===target.dataset.id); if (!product) return; const resume = listingState(product) === 'Paused'; setListingStatus(product.id, resume ? 'Active' : 'Paused', resume ? 'Resumed by the shop in this demo.' : 'Paused by the shop — hidden from customers in this demo.'); toast(resume ? 'Listing is live again in this demo.' : 'Listing paused in this demo.'); }
+  else if (action === 'listing-archive') { const product = sellerProducts().find(p=>p.id===target.dataset.id); if (!product) return; setListingStatus(product.id, 'Archived', 'Archived by the shop in this demo.'); toast('Listing archived. It stays in your catalogue history.'); }
+  else if (action === 'listing-discard') { const products = sellerProducts(); const product = products.find(p=>p.id===target.dataset.id); if (!product) return; saveSellerData('products', products.filter(p=>p.id!==product.id)); closeSellerModal(); renderSeller(); toast('Draft discarded from this demo catalogue.'); }
+  else if (action === 'listing-duplicate') duplicateListing(target.dataset.id);
+  else if (action === 'listing-submit') {
+    const product = sellerProducts().find(p=>p.id===target.dataset.id);
+    if (!product) return;
+    const checks = listingChecks({ ...product, images: product.images || [] });
+    const missing = checks.filter(check => check.required && !check.ok);
+    closeSellerModal();
+    if (!missing.length) { setListingStatus(product.id, 'Under review', 'Submitted for a sample NearBuy catalogue check.'); toast('Listing submitted to the sample review queue.'); return; }
+    startListingWizard('edit', product, {}, missing[0].step);
+    if (listingWizard) { listingWizard.errors = missing.map(check => check.fix); renderListingWizard(); }
+    toast(`${missing.length} detail${missing.length === 1 ? '' : 's'} need attention before submitting.`);
+  }
+  else if (action === 'listing-approve') { const product = sellerProducts().find(p=>p.id===target.dataset.id); if (!product) return; setListingStatus(product.id, 'Active', 'Approved in the sample catalogue review.'); toast('Listing approved and live in this demo.'); }
+  else if (action === 'listing-request-changes') { const product = sellerProducts().find(p=>p.id===target.dataset.id); if (product) listingChangesModal(product); }
+  else if (action === 'listing-fix') { const product = sellerProducts().find(p=>p.id===target.dataset.id); const step = Number(target.dataset.step) || 1; closeSellerModal(); if (product) startListingWizard('edit', product, {}, step); }
   else if (action === 'stock-product') { const p=sellerProducts().find(x=>x.id===target.dataset.id); if(p) editStockModal(p); }
   else if (action === 'adjust-stock') adjustStock(target.dataset.id,Number(target.dataset.delta));
   else if (action === 'set-stock') { const p=sellerProducts().find(x=>x.id===target.dataset.id); if(p) editStockModal(p); }
@@ -262,7 +750,7 @@ document.addEventListener('submit', event => {
     event.preventDefault();const products=sellerProducts();const id=data.get('id')||`NB-${Date.now().toString().slice(-6)}`;const current=products.find(p=>p.id===id);const product={...(current||{}),id,sku:current?.sku||`GB-${Date.now().toString().slice(-5)}`,name:data.get('name').trim(),category:data.get('category'),emoji:data.get('emoji')||'🛍️',price:Number(data.get('price')),mrp:Number(data.get('mrp')||data.get('price')),stock:Number(data.get('stock')),lowAt:Number(data.get('lowAt')||5),sold:current?.sold||0,status:Number(data.get('stock'))>0?'Active':'Out of stock'};saveSellerData('products',current?products.map(p=>p.id===id?product:p):[product,...products]);closeSellerModal();renderSeller();toast('Product saved to the demo catalogue.');
   }
   else if(form.id==='bulkForm'){
-    event.preventDefault();const rows=data.get('rows').split(/\r?\n/).map(row=>row.split(',').map(x=>x.trim())).filter(row=>row.length>=4&&row[0]);const valid=rows.filter(row=>row[0]&&Number(row[2])>0&&Number(row[3])>=0);if(!valid.length){toast('No valid rows found. Use name, category, price, stock.');return;}const products=sellerProducts();valid.forEach((row,i)=>products.unshift({id:`NB-${Date.now().toString().slice(-5)}${i}`,sku:`BULK-${Date.now().toString().slice(-4)}${i}`,name:row[0],category:row[1]||'Grocery',price:Number(row[2]),mrp:Number(row[2]),stock:Number(row[3]),lowAt:5,sold:0,emoji:'🛍️',status:Number(row[3])?'Active':'Out of stock'}));saveSellerData('products',products);closeSellerModal();goView('products');toast(`${valid.length} demo product${valid.length===1?'':'s'} imported.`);
+    event.preventDefault();const rows=data.get('rows').split(/\r?\n/).map(row=>row.split(',').map(x=>x.trim())).filter(row=>row.length>=4&&row[0]);const valid=rows.filter(row=>row[0]&&Number(row[2])>0&&Number(row[3])>=0);if(!valid.length){toast('No valid rows found. Use name, category, price, stock.');return;}const products=sellerProducts();valid.forEach((row,i)=>products.unshift({id:`NB-${Date.now().toString().slice(-5)}${i}`,sku:`BULK-${Date.now().toString().slice(-4)}${i}`,name:row[0],category:row[1]||'Grocery',subcategory:'',price:Number(row[2]),mrp:Number(row[2]),stock:Number(row[3]),lowAt:5,sold:0,emoji:'🛍️',status:Number(row[3])?'Active':'Out of stock',listingStatus:'Under review',reviewNote:'Bulk import — photos and details still need a catalogue check.',createdAt:new Date().toLocaleString('en-IN'),updatedAt:new Date().toLocaleString('en-IN'),history:[{status:'Under review',note:'Imported from a pasted spreadsheet.',at:new Date().toLocaleString('en-IN'),by:sellerUser.name}]}));saveSellerData('products',products);closeSellerModal();goView('products');toast(`${valid.length} demo product${valid.length===1?'':'s'} imported.`);
   }
   else if(form.id==='stockForm'){
     event.preventDefault();const products=sellerProducts();const id=data.get('id');const product=products.find(p=>p.id===id);if(!product)return;product.stock=Math.max(0,Number(data.get('stock')));product.status=product.stock?'Active':'Out of stock';saveSellerData('products',products);const movements=sellerData('movements',[]);movements.unshift({id,amount:product.stock,date:new Date().toLocaleString('en-IN'),by:sellerUser.name});saveSellerData('movements',movements.slice(0,50));closeSellerModal();renderSeller();toast('Stock count updated.');
@@ -276,16 +764,47 @@ document.addEventListener('submit', event => {
   else if(form.id==='sellerSupportForm'){
     event.preventDefault();const tickets=sellerData('tickets',[]);tickets.unshift({id:`NBH-${Date.now().toString().slice(-6)}`,topic:data.get('topic'),message:data.get('message').trim(),date:new Date().toLocaleDateString('en-IN')});saveSellerData('tickets',tickets);renderSeller();toast('Demo support ticket saved in this browser.');
   }
+  else if(form.id==='listingStepForm'){
+    event.preventDefault();
+    if(!listingWizard) return;
+    const submitter = event.submitter;
+    const intent = String(submitter?.value || form.dataset.intent || new FormData(form).get('intent') || 'next');
+    delete form.dataset.intent;
+    captureListingStep(form);
+    if(intent==='next'){
+      const issue = listingChecks({ ...listingWizard.data, images: listingWizard.images }).filter(check => check.step === listingWizard.step && check.required && !check.ok);
+      if(issue.length){ listingWizard.errors = issue.map(check => check.fix); renderListingWizard(); return; }
+      listingWizard.step = Math.min(LISTING_STEPS.length, listingWizard.step + 1); listingWizard.errors = []; renderListingWizard(); return;
+    }
+    saveListing(intent);
+  }
+  else if(form.id==='aiListingForm'){
+    event.preventDefault();
+    const prompt = String(data.get('prompt') || '').trim();
+    if(!prompt) return;
+    aiListingDraft = buildAiSuggestion(prompt, String(data.get('category') || 'Grocery'));
+    aiSuggestionModal(aiListingDraft);
+  }
+  else if(form.id==='listingChangesForm'){
+    event.preventDefault();
+    const reason = String(data.get('reason') || 'Changes needed');
+    const note = String(data.get('note') || '').trim();
+    const id = String(data.get('id') || '');
+    setListingStatus(id, 'Changes required', note ? `${reason} — ${note}` : reason);
+    toast('Listing sent back for changes in this demo.');
+  }
   else if(form.id==='teamForm'){
     event.preventDefault();const team=sellerData('team',[{name:'Riya Sharma',email:'owner@nearbuy.demo',role:'Owner',initials:'RS'},{name:'Aarav Mehta',email:'manager@nearbuy.demo',role:'Shop manager',initials:'AM'},{name:'Sana Khan',email:'inventory@nearbuy.demo',role:'Inventory manager',initials:'SK'}]);const name=data.get('name').trim();team.push({name,email:data.get('email').trim(),role:data.get('role'),initials:name.split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase()});saveSellerData('team',team);closeSellerModal();renderSeller();toast('Demo teammate added. No invitation was sent.');
   }
 });
 document.addEventListener('input', event=>{
-  if(event.target.id==='productSearch'){productQuery=event.target.value;const rows=document.getElementById('productRows');if(rows){const products=sellerProducts().filter(p=>`${p.name} ${p.sku}`.toLowerCase().includes(productQuery.toLowerCase()));rows.innerHTML=products.map(productRow).join('')||'<tr><td colspan="6"><div class="seller-empty">No products found.</div></td></tr>';}}
+  if(event.target.id==='productSearch'){productQuery=event.target.value;filterProductTable();}
+  if(event.target.id==='listingMasterSearch'){const results=document.getElementById('masterResults');if(results)results.innerHTML=masterResultsHtml(event.target.value);}
+  if(event.target.id==='mrpInput'||event.target.id==='priceInput'){const preview=document.getElementById('pricePreview');if(preview)preview.innerHTML=listingPriceLine({mrp:document.getElementById('mrpInput')?.value,price:document.getElementById('priceInput')?.value});}
   if(event.target.id==='orderSearch'){const query=event.target.value.toLowerCase();const filtered=sellerOrders().filter(o=>(orderFilter==='All orders'||o.status===orderFilter)&&`${o.id} ${o.customer} ${o.area}`.toLowerCase().includes(query));const list=document.getElementById('orderList');if(list)list.innerHTML=filtered.map(orderSummary).join('')||'<div class="seller-empty">No orders match this search.</div>';}
   if(event.target.id==='inventorySearch'){const query=event.target.value.toLowerCase();const rows=document.getElementById('inventoryRows');if(rows){rows.querySelectorAll('tr').forEach(row=>row.hidden=!row.textContent.toLowerCase().includes(query));}}
 });
-document.addEventListener('change',event=>{if(event.target.id==='productCategory'||event.target.id==='productState')filterProductTable();if(event.target.id==='shopRadius'||event.target.id==='shopPrep'){const settings=sellerSettings();if(event.target.id==='shopRadius')settings.radius=event.target.value;else settings.prep=event.target.value;saveSellerData('settings',settings);}});
+document.addEventListener('change',event=>{if(event.target.id==='productCategory'||event.target.id==='productState'||event.target.id==='listingState')filterProductTable();if(event.target.id==='listingCategory'&&listingWizard){captureListingStep(event.target.form);const subs=LISTING_CATEGORIES[listingWizard.data.category]||[];if(!subs.includes(listingWizard.data.subcategory))listingWizard.data.subcategory='';listingWizard.errors=[];renderListingWizard();return;}if(event.target.id==='listingImageInput'){handleListingImages(event.target.files);return;}if(event.target.id==='shopRadius'||event.target.id==='shopPrep'){const settings=sellerSettings();if(event.target.id==='shopRadius')settings.radius=event.target.value;else settings.prep=event.target.value;saveSellerData('settings',settings);}});
 document.addEventListener('keydown',event=>{if(event.key==='Escape')closeSellerModal();});
 window.addEventListener('storage',event=>{if(event.key==='nearbuy-delivery:tasks'&&sellerUser)renderSeller();});
 document.getElementById('sellerNav').addEventListener('click',event=>{const item=event.target.closest('[data-view]');if(item)goView(item.dataset.view);});

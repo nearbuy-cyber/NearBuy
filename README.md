@@ -40,6 +40,17 @@ Open [`/seller.html`](http://localhost:4173/seller.html) or use **Open Seller Hu
 
 The responsive Seller Hub includes an overview, order queue and simulated fulfilment statuses, editable catalogue and stock counts, returns, sample earnings/settlements, promotions, insights, shop settings, support, team access, and notifications. In **Delivery & pickup**, a prepared sample order can be routed to the Runner demo, recorded for the shop’s own delivery staff, or prepared for customer pickup.
 
+### Listing studio (Products & catalogue)
+
+`Products & catalogue` now manages full product listings rather than only price and stock:
+
+- **Five ways to start:** add manually, an AI-assisted draft (local keyword rules only), a bulk pasted spreadsheet, copy an existing listing, or a barcode/SKU lookup against the shop's own catalogue.
+- **Five-step listing wizard:** category and identity (with shared product-master prefill), details, photos with basic image checks (size, square crop, placeholder warnings), price/stock/fulfilment, and a review screen with twelve automatic quality checks.
+- **Listing states:** each listing carries its own state — Draft, Incomplete, Under review, Changes required, Active, Paused, Rejected or Archived — shown separately from stock state.
+- **Review queue:** submitted listings wait in a sample catalogue review where they can be approved or sent back with a specific reason; the seller sees the note in the listing row and activity trail.
+- **Listing management:** customer preview, quick price/stock edit, pause/resume, duplicate as draft, archive, discard a draft, and catalogue-quality suggestions (photos, descriptions, brand, price vs MRP).
+- **Photos:** up to three images are resized in the browser and stored in local storage. No server upload, barcode database, AI service or real catalogue moderation is connected; placeholder art keeps the flow usable without a photo.
+
 ## NearBuy Runner & delivery network demos
 
 - [`/partner.html`](http://localhost:4173/partner.html) — public partner landing and responsive Runner partner app: adult age-gate explainer, online/offline control, flexible distance/category preferences, sample request cards, accept/pass, pickup and customer OTP workflow, task history, earnings, privacy, safety and local support.
