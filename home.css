@@ -1012,3 +1012,115 @@ html[data-motion="reduced"] [data-reveal] { opacity: 1 !important; transform: no
   .help-links { grid-template-columns: minmax(0, 1fr); }
   .stat-stack { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ============================================================================
+   Help & Support — homepage enquiry section
+   ========================================================================== */
+.support { position: relative; }
+.support__grid {
+  display: grid;
+  grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr);
+  gap: clamp(28px, 4vw, 56px);
+  align-items: start;
+}
+.support__intro h2 { font-size: clamp(26px, 3.2vw, 40px); letter-spacing: -.035em; margin-top: 10px; }
+.support__smile { display: inline-block; font-size: .82em; transform: translateY(-2px); }
+.support__lede { margin-top: 14px; font-size: 14.5px; line-height: 1.72; color: var(--text); max-width: 44ch; }
+
+.support__art { margin: 22px 0 18px; width: 168px; max-width: 60%; }
+.support__art svg { width: 100%; height: auto; display: block; filter: drop-shadow(0 18px 30px rgba(12, 26, 51, .10)); }
+
+.support__links { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+.support__links a {
+  display: inline-flex; align-items: center; gap: 9px;
+  font-size: 13px; font-weight: 600; color: var(--ink-2); text-decoration: none;
+  padding: 9px 12px; border-radius: 11px; border: 1px solid var(--line);
+  background: #fff; transition: border-color .18s var(--ease, ease), transform .18s var(--ease, ease), color .18s ease;
+}
+.support__links a:hover { border-color: var(--orange); color: var(--orange-deep); transform: translateY(-1px); }
+.support__links .ic { width: 15px; height: 15px; color: var(--orange); flex: 0 0 auto; }
+.support__meta { margin-top: 16px; font-size: 12px; color: var(--muted); }
+.support__meta b { color: var(--ink-2); }
+
+.support__card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: clamp(20px, 2.6vw, 30px);
+  box-shadow: 0 26px 60px -40px rgba(12, 26, 51, .5);
+}
+.support__card-head { display: flex; gap: 13px; align-items: flex-start; margin-bottom: 18px; }
+.support__badge {
+  display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 auto;
+  border-radius: 12px; background: var(--orange-soft); color: var(--orange-deep); border: 1px solid #ffe0c4;
+}
+.support__badge .ic { width: 19px; height: 19px; }
+.support__card-head h3 { font-size: 17px; letter-spacing: -.02em; }
+.support__card-head p { margin-top: 3px; font-size: 12.5px; color: var(--muted); }
+
+.support__form { display: grid; gap: 14px; }
+.support__summary {
+  margin: 0; padding: 10px 13px; border-radius: 10px;
+  background: #fdeceb; border: 1px solid #f3cdc8; color: #8f2f26;
+  font-size: 12.5px; font-weight: 500;
+}
+.sfield { display: grid; gap: 6px; }
+.sfield > label { font-size: 12px; font-weight: 700; color: var(--ink-2); letter-spacing: .01em; }
+.sfield__req { color: var(--orange-deep); }
+.sfield input, .sfield select, .sfield textarea {
+  width: 100%; font: inherit; font-size: 13.5px; color: var(--ink);
+  padding: 12px 13px; border-radius: 11px; border: 1px solid var(--line);
+  background: #fffdfa; transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+}
+.sfield textarea { resize: vertical; min-height: 104px; line-height: 1.6; }
+.sfield input::placeholder, .sfield textarea::placeholder { color: #a7afbd; }
+.sfield input:hover, .sfield textarea:hover, .sfield select:hover { border-color: #d8cdb9; }
+.sfield input:focus, .sfield select:focus, .sfield textarea:focus {
+  outline: none; border-color: var(--orange); background: #fff;
+  box-shadow: 0 0 0 3px rgba(244, 119, 24, .16);
+}
+.sfield__select { position: relative; }
+.sfield__select select { appearance: none; -webkit-appearance: none; padding-right: 36px; cursor: pointer; }
+.sfield__chevron { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--muted); pointer-events: none; }
+.sfield.is-invalid input, .sfield.is-invalid select, .sfield.is-invalid textarea { border-color: #d3564a; background: #fffafa; }
+.sfield.is-invalid input:focus, .sfield.is-invalid select:focus, .sfield.is-invalid textarea:focus { box-shadow: 0 0 0 3px rgba(211, 86, 74, .16); }
+.sfield__error { margin: 0; font-size: 11.5px; font-weight: 500; color: #a8372c; }
+.sfield__row { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; }
+.sfield__row .sfield__error { flex: 1; }
+.sfield__count { margin-left: auto; font-size: 11px; color: var(--muted-2); white-space: nowrap; }
+
+.support__submit { margin-top: 4px; }
+.support__fineprint {
+  display: flex; gap: 8px; align-items: flex-start; margin: 2px 0 0;
+  font-size: 11px; line-height: 1.55; color: var(--muted);
+}
+.support__fineprint .ic { width: 13px; height: 13px; flex: 0 0 auto; margin-top: 2px; color: var(--green); }
+.support__fineprint b { color: var(--ink-2); }
+
+.support__done { display: grid; gap: 10px; justify-items: start; padding: 8px 2px 2px; }
+.support__done[hidden] { display: none; }
+.support__done-icon {
+  display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%;
+  background: var(--green-soft); color: var(--green); border: 1px solid #cfe9da;
+}
+.support__done-icon .ic { width: 22px; height: 22px; }
+.support__done h3 { font-size: 19px; letter-spacing: -.025em; }
+.support__done p { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--text); }
+.support__done-ref { font-size: 12px !important; color: var(--muted) !important; }
+.support__done-ref b { color: var(--ink-2); letter-spacing: .04em; }
+.support__done-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 6px; }
+
+@media (max-width: 1000px) {
+  .support__grid { grid-template-columns: minmax(0, 1fr); }
+  .support__art { width: 132px; margin: 18px 0 16px; }
+  .support__lede { max-width: 60ch; }
+}
+@media (max-width: 560px) {
+  .support__card { border-radius: 18px; padding: 18px 16px; }
+  .support__card-head h3 { font-size: 16px; }
+  .support__done-actions .btn { flex: 1; justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .support__links a { transition: none; }
+  .support__links a:hover { transform: none; }
+}

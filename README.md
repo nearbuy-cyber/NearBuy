@@ -16,7 +16,7 @@ Then open **http://localhost:4173** — no build step, no dependencies, no backe
 
 | Route | Page |
 | --- | --- |
-| `/` | Universal homepage — 3D hero, portals, categories, how it works, why NearBuy, portal previews, partners, trust, FAQs |
+| `/` | Universal homepage — 3D hero, portals, categories, how it works, why NearBuy, portal previews, partners, trust, FAQs, Help & Support enquiry form |
 | `/customer/` · `/customer/login/` | Enters the customer portal (redirects into NearBuy One, Shop workspace) |
 | `/seller/` · `/seller/register/` | Enters the seller portal (Sell workspace) |
 | `/runner/` · `/runner/register/` | Enters the delivery-partner portal (Deliver workspace) |
@@ -59,6 +59,14 @@ What is *not* real: no SMS, no document upload, no identity provider, no bank ve
 - **Light on mobile** — single-column hero, simplified scene (parallax off on coarse pointers), 2×2 then 1-up grids, and a scrollable tab strip. Art is compressed: 164 KB hero JPEG, ~56–72 KB portal renders.
 - **Accessible by default** — skip link, one `<h1>`, labelled landmarks, `aria-selected` tablist with arrow-key support, focus-trapped portal chooser with `Esc`, visible focus rings, `aria-current` on the active page.
 
+### Help & Support (homepage, above the footer)
+
+A four-field enquiry card — full name, mobile/email, topic and message — sits in the cream band directly above the footer, so it reads as part of the homepage rather than a separate contact page. It validates on submit (name length, email **or** 10-digit Indian mobile, a topic from the list, a message of at least 10 characters), writes inline errors with `aria-invalid`, focuses the first problem and counts characters as you type.
+
+A valid submission shows **"Thank you for contacting NearBuy! We've received your query and will get back to you."** with a reference such as `ENQ-1042`, and stores the record in the same demo store the product uses (`nearbuy.one.v2` → `enquiries`). It then appears in the operations console under **Enquiries**, where an operator can mark it answered, close or reopen it — each change is audited.
+
+Because there is no backend, nothing is emailed and no support agent is paged; the card says so, and the demo store keeps the note in this browser.
+
 ## NearBuy One
 
 **One shared backend, five separately signed-in workspaces.** Shop, sell, deliver, run a fleet and operate the network — one consistent shell and one live data model, but each workspace opens only after its own sign-in, at **`/portal.html`**.
@@ -85,7 +93,7 @@ NearBuy One rebuilds them as **one product**:
 | **Sell** | Green Basket Market | Accept orders, mark ready, request runners, edit catalogue & stock, promotions, payouts, insights, settings, team |
 | **Deliver** | Runner | Go online, accept/pass requests, shop arrival, pickup OTP, route, delivery OTP, earnings, preferences, safety reports |
 | **Fleet** | Neighbourhood fleet lead | Team availability, work allocation, auto-match, reports, safety commitments |
-| **Ops** | South Delhi ops desk | Control tower, dispatch queue, **verification queue**, partner eligibility, service areas, pricing bands, incidents, audit log |
+| **Ops** | South Delhi ops desk | Control tower, dispatch queue, **verification queue**, **homepage enquiry queue**, partner eligibility, service areas, pricing bands, incidents, audit log |
 
 ## Follow one order around the loop
 
@@ -123,6 +131,7 @@ All data is local sample data in `localStorage` (key `nearbuy.one.v2`). Nothing 
 - Shop: **Green Basket Market** — owner Riya, manager Aarav, inventory Sana
 - Runners: **Rohan Kumar** (walking), Meena Joshi (bicycle), Farhan Ali (bicycle)
 - Areas: Hauz Khas, Green Park, Saket · pricing bands from ₹10 to ₹25
+- Enquiries: two sample homepage queries in the ops queue, plus anything you submit from the homepage form
 
 Reset everything from the rail footer’s *Reset demo data*, or from the account menu.
 

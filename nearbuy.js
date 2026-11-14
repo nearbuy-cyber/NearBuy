@@ -251,6 +251,10 @@ const DEFAULT_STATE = () => ({
     { id: 'n3', audience: 'deliver', title: 'Delivery request nearby', body: 'Green Basket Market · 0.4 km · ₹12', at: '2 min ago', unread: true },
     { id: 'n4', audience: 'ops', title: 'Unmatched delivery request', body: 'DR-1032 has no partner for 6 minutes.', at: '10:46 am', unread: true }
   ],
+  enquiries: [
+    { id: 'ENQ-1041', name: 'Aarti Menon', contact: 'aarti.menon@example.com', topic: 'Fee Structure', message: 'Do you charge a monthly platform fee for neighbourhood shops under ₹1 lakh turnover?', status: 'New', source: 'Homepage', at: 'Yesterday, 5:20 pm', demo: true },
+    { id: 'ENQ-1040', name: 'Imran Qureshi', contact: '98••••210', topic: 'Shipping & Delivery', message: 'Can a Runner carry a 3 kg stationery order to Saket?', status: 'Responded', source: 'Homepage', at: '2 days ago', demo: true }
+  ],
   orderSeq: 20487,
   onboarding: { seller: sellerBlank(), runner: runnerBlank() }
 });
@@ -265,7 +269,8 @@ function loadState() {
       ? { seller: { ...base.onboarding.seller, ...parsed.onboarding.seller, checks: parsed.onboarding.seller.checks || [] },
           runner: { ...base.onboarding.runner, ...(parsed.onboarding.runner || {}), checks: (parsed.onboarding.runner || {}).checks || [] } }
       : base.onboarding;
-    return { ...base, ...parsed, onboarding, settings: { ...base.settings, ...(parsed.settings || {}) } };
+    const enquiries = Array.isArray(parsed.enquiries) ? parsed.enquiries : base.enquiries;
+    return { ...base, ...parsed, onboarding, enquiries, settings: { ...base.settings, ...(parsed.settings || {}) } };
   } catch { return DEFAULT_STATE(); }
 }
 const state = loadState();
@@ -458,6 +463,7 @@ const SURFACES = {
       { group: 'CONTROL TOWER' },
       { view: 'overview', label: 'Live overview', icon: 'home' },
       { view: 'verifications', label: 'Verifications', icon: 'shield', count: () => opsApplications().filter((a) => !['Approved', 'Rejected'].includes(a.app.status)).length },
+      { view: 'enquiries', label: 'Enquiries', icon: 'inbox', count: () => state.enquiries.filter((e) => e.status === 'New').length },
       { view: 'dispatch', label: 'Dispatch', icon: 'pin', count: () => state.tasks.filter((t) => t.status === 'Requested').length },
       { view: 'partners', label: 'Partners', icon: 'users' },
       { group: 'NETWORK SETUP' },
@@ -2152,6 +2158,47 @@ function opsIncidents() {
     </div>
   </div>`;
 }
+function opsEnquiries() {
+  const list = state.enquiries;
+  const fresh = list.filter((e) => e.status === 'New');
+  const answered = list.filter((e) => e.status === 'Responded');
+  const closed = list.filter((e) => e.status === 'Closed');
+  const row = (e) => `<div class="list-row">
+    <span class="kpi__icon">${icon('mail')}</span>
+    <div class="list-row__main">
+      <b>${esc(e.name)} <span class="tiny muted">· ${esc(e.contact)}</span></b>
+      <small>${esc(e.message)}</small>
+      <div class="tiny muted mt-6">${esc(e.id)} · ${esc(e.topic)} · ${esc(e.at)} · ${esc(e.source || 'Homepage')}${e.demo ? ' · sample row' : ''}</div>
+    </div>
+    <div class="list-row__end">
+      ${pill(e.status, e.status === 'New' ? 'amber' : e.status === 'Responded' ? 'blue' : 'neutral')}
+      ${e.status === 'New' ? `<button class="btn btn--primary btn--xs" data-act="enquiry-status" data-id="${e.id}" data-status="Responded">${icon('check', 'sm')} Mark answered</button>` : ''}
+      ${e.status === 'Closed'
+        ? `<button class="btn btn--ghost btn--xs" data-act="enquiry-status" data-id="${e.id}" data-status="New">${icon('refresh', 'sm')} Reopen</button>`
+        : `<button class="btn btn--ghost btn--xs" data-act="enquiry-status" data-id="${e.id}" data-status="Closed">${icon('x', 'sm')} Close</button>`}
+    </div>
+  </div>`;
+  return `<div class="page">
+    ${pageHead('OPS · ENQUIRIES', 'Enquiry queue', 'Queries submitted through the homepage Help & Support form land here for review.', `<span class="chip active">${icon('inbox')} ${fresh.length} new</span>`)}
+    <div class="grid grid--kpi">
+      ${kpi({ label: 'New queries', value: fresh.length, icon: 'inbox', foot: 'waiting for a first reply' })}
+      ${kpi({ label: 'Answered', value: answered.length, icon: 'checkCircle', foot: 'marked by an operator' })}
+      ${kpi({ label: 'Closed', value: closed.length, icon: 'archive', foot: 'no further action' })}
+      ${kpi({ label: 'Topics covered', value: new Set(list.map((e) => e.topic)).size, icon: 'tag', foot: 'of 7 form topics' })}
+    </div>
+    <div class="grid grid--aside">
+      <section class="card card--flush">
+        <div class="card__head"><div><h2>Enquiry log</h2><p>Newest first. Status changes are written to the audit log.</p></div></div>
+        <div class="rows">${list.length ? list.map(row).join('') : emptyState('inbox', 'No enquiries yet', 'Submit the Help & Support form on the homepage and it will appear here.', `<a class="btn btn--ghost btn--sm mt-10" href="/#support">${icon('mail')} Open the form</a>`)}</div>
+      </section>
+      <aside class="stack">
+        ${card({ title: 'How this queue works', sub: 'Demo behaviour', body: `<div class="timeline">${[['Visitor sends a query', 'The homepage form validates four fields.'], ['Stored in this browser', 'The shared demo store holds the enquiry, nothing is emailed.'], ['Operator triage', 'Mark answered or close it — each change is audited.'], ['Reply to the visitor', 'Not implemented: no mail or SMS provider is connected.']].map(([t, x], i) => `<div class="timeline__row ${i === 2 ? 'now' : ''}"><span class="timeline__dot">${icon(i === 2 ? 'clock' : 'check')}</span><div class="timeline__body"><b>${t}</b><small>${x}</small></div></div>`).join('')}</div>` })}
+        ${card({ body: `<div class="notice notice--plain">${icon('lock')}<span><b>Internal only.</b> Contact details entered on the homepage stay in this browser. Production needs a real ticket system, consent records, retention limits and role-based access.</span></div>` })}
+      </aside>
+    </div>
+  </div>`;
+}
+
 function opsAudit() {
   return `<div class="page">
     ${pageHead('OPS · AUDIT', 'Audit log', 'Every meaningful demo action is recorded locally in this browser.', `<button class="btn btn--ghost btn--sm" data-act="export-audit">${icon('download')} Export log</button>`)}
@@ -2168,6 +2215,7 @@ function opsAudit() {
 function opsPage() {
   switch (route.view) {
     case 'verifications': return opsVerifications();
+    case 'enquiries': return opsEnquiries();
     case 'dispatch': return opsDispatch();
     case 'partners': return opsPartners();
     case 'areas': return opsAreas();
@@ -2569,6 +2617,15 @@ function handleAction(act, ds, el, event) {
     }
     case 'ob-decide': decideApplication(ds.kind, ds.decision); break;
     case 'ob-restart': restartApplication(ds.kind); break;
+    case 'enquiry-status': {
+      const e = state.enquiries.find((x) => x.id === ds.id);
+      if (!e) break;
+      e.status = ds.status;
+      audit(`Enquiry ${ds.status === 'Responded' ? 'answered' : ds.status === 'Closed' ? 'closed' : 'reopened'}`, `${e.id} · ${e.topic} · ${e.name}`, 'Ops reviewer (demo)');
+      save(); paint();
+      toast(`Enquiry ${e.id} marked ${e.status.toLowerCase()}.`, ds.status === 'Closed' ? 'archive' : 'checkCircle');
+      break;
+    }
     case 'admin-lock': clearAdminSession(); paint(); toast('Operations session cleared for this tab.', 'lock'); break;
     case 'save': {
       const on = state.saved.includes(ds.id);
