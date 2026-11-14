@@ -256,7 +256,8 @@ const DEFAULT_STATE = () => ({
     { id: 'ENQ-1040', name: 'Imran Qureshi', contact: '98••••210', topic: 'Shipping & Delivery', message: 'Can a Runner carry a 3 kg stationery order to Saket?', status: 'Responded', source: 'Homepage', at: '2 days ago', demo: true }
   ],
   orderSeq: 20487,
-  onboarding: { seller: sellerBlank(), runner: runnerBlank() }
+  onboarding: { seller: sellerBlank(), runner: runnerBlank() },
+  profile: profileSeed()
 });
 
 function loadState() {
@@ -270,7 +271,15 @@ function loadState() {
           runner: { ...base.onboarding.runner, ...(parsed.onboarding.runner || {}), checks: (parsed.onboarding.runner || {}).checks || [] } }
       : base.onboarding;
     const enquiries = Array.isArray(parsed.enquiries) ? parsed.enquiries : base.enquiries;
-    return { ...base, ...parsed, onboarding, enquiries, settings: { ...base.settings, ...(parsed.settings || {}) } };
+    const profile = parsed.profile && parsed.profile.account
+      ? { ...base.profile, ...parsed.profile,
+          account: { ...base.profile.account, ...(parsed.profile.account || {}) },
+          business: { ...base.profile.business, ...(parsed.profile.business || {}) },
+          locations: Array.isArray(parsed.profile.locations) && parsed.profile.locations.length ? parsed.profile.locations : base.profile.locations,
+          bank: Array.isArray(parsed.profile.bank) ? parsed.profile.bank : base.profile.bank,
+          changes: Array.isArray(parsed.profile.changes) ? parsed.profile.changes : base.profile.changes }
+      : base.profile;
+    return { ...base, ...parsed, onboarding, enquiries, profile, settings: { ...base.settings, ...(parsed.settings || {}) } };
   } catch { return DEFAULT_STATE(); }
 }
 const state = loadState();
@@ -421,6 +430,12 @@ const SURFACES = {
       { view: 'payments', label: 'Payments & earnings', icon: 'rupee' },
       { view: 'promotions', label: 'Promotions', icon: 'megaphone' },
       { view: 'insights', label: 'Business insights', icon: 'chart' },
+      { group: 'MANAGE PROFILE' },
+      { view: 'profile', label: 'Manage profile', icon: 'user' },
+      { view: 'profile-account', label: 'Account details', icon: 'lock' },
+      { view: 'profile-locations', label: 'Locations', icon: 'pin' },
+      { view: 'profile-bank', label: 'Bank details', icon: 'wallet' },
+      { view: 'profile-business', label: 'Business details', icon: 'store' },
       { group: 'YOUR BUSINESS' },
       { view: 'settings', label: 'Shop settings', icon: 'sliders' },
       { view: 'team', label: 'Team & access', icon: 'users' },
@@ -463,6 +478,7 @@ const SURFACES = {
       { group: 'CONTROL TOWER' },
       { view: 'overview', label: 'Live overview', icon: 'home' },
       { view: 'verifications', label: 'Verifications', icon: 'shield', count: () => opsApplications().filter((a) => !['Approved', 'Rejected'].includes(a.app.status)).length },
+      { view: 'changes', label: 'Profile changes', icon: 'refresh', count: () => pfPendingChanges().length },
       { view: 'enquiries', label: 'Enquiries', icon: 'inbox', count: () => state.enquiries.filter((e) => e.status === 'New').length },
       { view: 'dispatch', label: 'Dispatch', icon: 'pin', count: () => state.tasks.filter((t) => t.status === 'Requested').length },
       { view: 'partners', label: 'Partners', icon: 'users' },
@@ -477,7 +493,7 @@ const SURFACES = {
 };
 
 const route = { surface: 'shop', view: 'home', id: null };
-const ui = { drawer: false, modal: null, palette: null, query: '', filters: {}, onboardError: '', signInError: '' };
+const ui = { drawer: false, modal: null, palette: null, query: '', filters: {}, onboardError: '', signInError: '', profileEdit: '', profileError: '' };
 
 function readRoute() {
   const raw = location.hash.replace(/^#\/?/, '');
@@ -1720,6 +1736,828 @@ function sellSupport() {
     </div>
   </div>`;
 }
+/* ===========================================================================
+   Seller Hub — Manage Profile
+   One seller record for the whole ecosystem: account and login, locations and
+   service area, payout bank accounts, and business identity and documents.
+   Browser-only simulation: no OTP, KYC, bank or document service is contacted.
+   ========================================================================= */
+
+function profileSeed() {
+  return {
+    account: {
+      fullName: 'Riya Sharma', mobile: '98110 23456', email: 'owner@nearbuy.demo',
+      photo: false, sellerId: 'NB-SLR-1042', createdAt: '12 Feb 2025', status: 'Active',
+      loginMobile: '98110 23456', loginEmail: 'owner@nearbuy.demo',
+      passwordChanged: '3 months ago', twoStep: true,
+      lastLogin: 'Today, 9:04 am · iPhone 14 · Safari',
+      sessions: [
+        { id: 's1', device: 'iPhone 14 · Safari', place: 'Hauz Khas, Delhi', at: 'Active now', current: true },
+        { id: 's2', device: 'Windows · Chrome', place: 'Green Park, Delhi', at: 'Yesterday, 8:12 pm' },
+        { id: 's3', device: 'Android · NearBuy app', place: 'Saket, Delhi', at: '3 days ago' }
+      ]
+    },
+    locations: [
+      {
+        id: 'loc-shop', type: 'Shop location', label: 'Green Basket Market — main shop',
+        building: 'Shop 14', street: 'Hauz Khas Village', landmark: 'Opposite the Deer Park gate',
+        city: 'New Delhi', state: 'Delhi', pin: '110016',
+        contact: 'Riya Sharma', phone: '98110 23456',
+        hours: '8:00 am – 10:00 pm', pickupHours: '9:00 am – 9:30 pm',
+        instructions: 'Ring the bell at the back counter. Parcels wait in the blue crate.',
+        lat: '28.5535', lng: '77.1940', defaultPickup: true,
+        servicePins: '110016, 110017, 110049', radius: 2
+      },
+      {
+        id: 'loc-pickup', type: 'Pickup location', label: 'Back-of-shop pickup counter',
+        building: 'Shop 14 (rear)', street: 'Hauz Khas Village', landmark: 'Next to the loading gate',
+        city: 'New Delhi', state: 'Delhi', pin: '110016',
+        contact: 'Aarav Mehta', phone: '98110 55120',
+        hours: '9:00 am – 9:30 pm', pickupHours: '9:00 am – 9:00 pm',
+        instructions: 'Ask for Aarav. Hand over only against the pickup OTP.',
+        lat: '28.5532', lng: '77.1938', defaultPickup: false,
+        servicePins: '110016', radius: 1
+      },
+      {
+        id: 'loc-return', type: 'Return location', label: 'Returns desk',
+        building: 'Shop 14', street: 'Hauz Khas Village', landmark: 'Front counter',
+        city: 'New Delhi', state: 'Delhi', pin: '110016',
+        contact: 'Sana Khan', phone: '98110 77541',
+        hours: '10:00 am – 8:00 pm', pickupHours: '10:00 am – 7:00 pm',
+        instructions: 'Returns are accepted at the front counter with the order number.',
+        lat: '28.5535', lng: '77.1940', defaultPickup: false,
+        servicePins: '110016', radius: 1
+      }
+    ],
+    bank: [
+      {
+        id: 'bank-1', holder: 'Riya Sharma', bankName: 'HDFC Bank', last4: '4321',
+        full: '50100288464321', ifsc: 'HDFC0001234', type: 'Savings', branch: 'Hauz Khas',
+        status: 'Verified', primary: true, verifiedAt: '12 Feb 2025'
+      }
+    ],
+    business: {
+      name: 'Green Basket Market', legalName: 'Green Basket Traders', type: 'Proprietorship',
+      category: 'Grocery and daily essentials',
+      description: 'A neighbourhood grocery and daily-needs shop run by the same family since 2019, with fresh produce from the local mandi every morning.',
+      year: '2019', outlets: '2', pan: 'ABCDE1234F', gstin: '07ABCDE1234F1Z5',
+      regNumber: 'DL-EST-2019-44821', licences: 'Delhi shop & establishment registration',
+      address: 'Shop 14, Hauz Khas Village, New Delhi 110016', ownership: 'Sole proprietor',
+      logo: true, photos: false,
+      documents: [
+        { id: 'doc-pan', name: 'PAN card', status: 'Verified', at: '12 Feb 2025' },
+        { id: 'doc-gst', name: 'GST certificate', status: 'Verified', at: '12 Feb 2025' },
+        { id: 'doc-reg', name: 'Business registration', status: 'Pending review', at: 'Submitted 4 Nov' },
+        { id: 'doc-addr', name: 'Address proof', status: 'Pending review', at: 'Submitted 4 Nov' },
+        { id: 'doc-licence', name: 'Shop & establishment licence', status: 'Verified', at: '15 Mar 2025' }
+      ]
+    },
+    changes: [
+      { id: 'CHG-2210', module: 'Bank details', field: 'Settlement account', from: '•••• 1180', to: '•••• 4321', at: '12 Feb 2025', status: 'Approved' },
+      { id: 'CHG-2244', module: 'Business details', field: 'Address proof', from: 'Not uploaded', to: 'Uploaded', at: '4 Nov, 11:02 am', status: 'Pending review' }
+    ]
+  };
+}
+
+function pfProfile() {
+  if (!state.profile) state.profile = profileSeed();
+  return state.profile;
+}
+function pfAccount() { return pfProfile().account; }
+function pfBusiness() { return pfProfile().business; }
+function pfLocations() { return pfProfile().locations; }
+function pfBanks() { return pfProfile().bank; }
+
+const PF_DOCS_BY_TYPE = {
+  Proprietorship: ['PAN card', 'GST certificate', 'Business registration', 'Address proof', 'Shop & establishment licence'],
+  Partnership: ['PAN card', 'GST certificate', 'Partnership deed', 'Address proof', 'Shop & establishment licence'],
+  LLP: ['PAN card', 'GST certificate', 'LLP incorporation certificate', 'Address proof', 'Shop & establishment licence'],
+  Company: ['PAN card', 'GST certificate', 'Certificate of incorporation', 'Address proof', 'Shop & establishment licence'],
+  Other: ['PAN card', 'Address proof', 'Shop & establishment licence']
+};
+function pfRequiredDocs(type) {
+  return PF_DOCS_BY_TYPE[type] || PF_DOCS_BY_TYPE.Other;
+}
+function pfSyncDocs(type) {
+  const b = pfBusiness();
+  const wanted = pfRequiredDocs(type);
+  const existing = new Map(b.documents.map((d) => [d.name, d]));
+  b.documents = wanted.map((name) => existing.get(name) || { id: uid('doc'), name, status: 'Not uploaded', at: 'Not uploaded yet' });
+}
+function pfCompletion() {
+  const p = pfProfile();
+  const checks = [
+    { key: 'contact', label: 'Contact details', done: !!(p.account.fullName && p.account.mobile && p.account.email), view: 'profile-account' },
+    { key: 'photo', label: 'Profile photo', done: !!p.account.photo, view: 'profile-account' },
+    { key: 'shop', label: 'Shop location', done: p.locations.some((l) => l.type === 'Shop location'), view: 'profile-locations' },
+    { key: 'pickup', label: 'Pickup location', done: p.locations.some((l) => l.type === 'Pickup location'), view: 'profile-locations' },
+    { key: 'bank', label: 'Verified bank account', done: p.bank.some((b) => b.status === 'Verified'), view: 'profile-bank' },
+    { key: 'identity', label: 'Business identity', done: !!(p.business.name && p.business.legalName && p.business.category), view: 'profile-business' },
+    { key: 'tax', label: 'PAN & GSTIN on file', done: !!(p.business.pan && p.business.gstin), view: 'profile-business' },
+    { key: 'photos', label: 'Shop photos', done: !!p.business.photos, view: 'profile-business' }
+  ];
+  const done = checks.filter((c) => c.done).length;
+  return { pct: Math.round((done / checks.length) * 100), checks, done, total: checks.length };
+}
+
+function pfMask(account) {
+  const digits = String(account || '').replace(/\D/g, '');
+  const last4 = digits.slice(-4) || '••••';
+  return `•••• •••• ${last4}`;
+}
+function pfMaskPan(pan) {
+  const value = String(pan || '');
+  if (value.length < 4) return '•••••';
+  return `•••••${value.slice(-4)}`;
+}
+function pfMaskGstin(gstin) {
+  const value = String(gstin || '');
+  if (value.length < 4) return '••••••••••';
+  return `${value.slice(0, 2)}•••••••${value.slice(-4)}`;
+}
+function pfPendingChanges() {
+  return pfProfile().changes.filter((c) => c.status === 'Pending review');
+}
+function pfAddChange(entry) {
+  const p = pfProfile();
+  p.changes.unshift({ id: uid('CHG'), status: 'Pending review', at: nowLabel(), ...entry });
+}
+
+/* ------------------------------- fragments -------------------------------- */
+function pfField(label, name, value, opts = {}) {
+  const attrs = [
+    opts.type ? `type="${opts.type}"` : '',
+    opts.ph ? `placeholder="${esc(opts.ph)}"` : '',
+    opts.maxlength ? `maxlength="${opts.maxlength}"` : '',
+    opts.inputmode ? `inputmode="${opts.inputmode}"` : '',
+    opts.required === false ? '' : 'required'
+  ].filter(Boolean).join(' ');
+  return `<label class="field"><span>${label}</span><input class="input" name="${name}" value="${esc(value ?? '')}" ${attrs} />${opts.hint ? `<small class="hint">${opts.hint}</small>` : ''}</label>`;
+}
+function pfSelect(label, name, value, options, hint = '') {
+  return `<label class="field"><span>${label}</span><select class="select" name="${name}">${options.map((o) => `<option ${o === value ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>${hint ? `<small class="hint">${hint}</small>` : ''}</label>`;
+}
+function pfNotice(text, tone = 'plain') {
+  return `<div class="notice ${tone === 'plain' ? 'notice--plain' : tone === 'info' ? 'notice--info' : ''}">${icon(tone === 'warn' ? 'alert' : 'shield')}<span>${text}</span></div>`;
+}
+function pfStatusPill(status) {
+  const tone = { Verified: 'green', Active: 'green', Approved: 'green', 'Pending review': 'amber', Pending: 'amber', 'Correction required': 'red', Rejected: 'red', 'Action needed': 'amber', 'Not uploaded': 'neutral' }[status] || 'neutral';
+  return pill(status, tone, status === 'Verified' || status === 'Active');
+}
+function pfRow(label, value, mono = false) {
+  return `<div class="pf-row"><span>${label}</span><b class="${mono ? 'pf-mono' : ''}">${value}</b></div>`;
+}
+function pfModuleCard(mod) {
+  return `<article class="pf-module">
+    <span class="pf-module__icon">${icon(mod.icon)}</span>
+    <div class="pf-module__body">
+      <div class="pf-module__title"><b>${mod.title}</b>${mod.badge ? pfStatusPill(mod.badge) : ''}</div>
+      <small>${mod.copy}</small>
+      <div class="pf-module__meta">${mod.meta}</div>
+    </div>
+    <button class="btn btn--ghost btn--sm" data-act="nav" data-surface="sell" data-view="${mod.view}">${mod.action || 'Manage'} ${icon('arrowRight')}</button>
+  </article>`;
+}
+function pfSaveBar(label = 'Save changes') {
+  return `<div class="pf-actions">
+    <button class="btn btn--ghost btn--sm" type="button" data-act="profile-cancel">Cancel</button>
+    <button class="btn btn--primary btn--sm" type="submit">${icon('check')} ${label}</button>
+  </div>`;
+}
+function pfError() {
+  return ui.profileError ? `<div class="notice">${icon('alert')}<span>${esc(ui.profileError)}</span></div>` : '';
+}
+
+/* ------------------------------- hub page --------------------------------- */
+function sellProfile() {
+  const p = pfProfile();
+  const c = pfCompletion();
+  const pending = pfPendingChanges();
+  const modules = [
+    { key: 'account', title: 'Account details', view: 'profile-account', icon: 'user', copy: 'Personal, primary and login information.', badge: p.account.status, meta: `${esc(p.account.fullName)} · ${esc(p.account.email)}` },
+    { key: 'locations', title: 'Manage locations', view: 'profile-locations', icon: 'pin', copy: 'Shop, pickup and return addresses.', badge: `${p.locations.length} locations`, meta: p.locations.filter((l) => l.type === 'Shop location').map((l) => esc(l.pin)).join(', ') || 'No shop address yet' },
+    { key: 'bank', title: 'Bank details', view: 'profile-bank', icon: 'wallet', copy: 'Bank account and payment settlements.', badge: (p.bank.find((b) => b.primary) || {}).status || 'None', meta: p.bank.length ? `${p.bank.length} account${p.bank.length === 1 ? '' : 's'} · ${pfMask((p.bank[0]).full)}` : 'No payout account' },
+    { key: 'business', title: 'Business details', view: 'profile-business', icon: 'store', copy: 'Shop identity, registration and documents.', badge: `${p.business.documents.filter((d) => d.status === 'Verified').length}/${p.business.documents.length} docs`, meta: `${esc(p.business.type)} · ${esc(p.business.category)}` }
+  ];
+  return `<div class="page">
+    ${pageHead('SELLER HUB · MANAGE PROFILE', 'Manage profile', 'Manage your account and business information.', `<span class="chip active">${icon('checkCircle')} ${esc(p.account.status)}</span>
+      <button class="btn btn--ghost btn--sm" data-act="nav" data-surface="sell" data-view="team">${icon('users')} Team &amp; access</button>`)}
+    ${pfError()}
+    <div class="grid grid--main mb-18">
+      <section class="card card--pad">
+        <div class="pf-head">
+          <div>
+            <span class="kicker"><i></i>YOUR SHOP PROFILE</span>
+            <h2>Seller account and business settings</h2>
+            <p class="tiny muted">One record for every NearBuy module — enter it once, keep it verified.</p>
+          </div>
+          ${pfStatusPill(p.account.status)}
+        </div>
+        <div class="pf-meter">
+          <div class="pf-meter__bar"><i style="width:${c.pct}%"></i></div>
+          <div class="pf-meter__meta"><span>Profile completion</span><b>${c.pct}%</b></div>
+        </div>
+        <div class="pf-checks">
+          ${c.checks.map((ch) => `<button class="pf-check ${ch.done ? 'is-done' : ''}" data-act="nav" data-surface="sell" data-view="${ch.view}">
+            ${icon(ch.done ? 'checkCircle' : 'alert', 'sm')}<span>${ch.label}</span>
+          </button>`).join('')}
+        </div>
+        <p class="tiny muted mt-10">${c.done} of ${c.total} checks complete. ${c.pct < 100 ? 'Anything unverified is flagged to operations before it can go live.' : 'Everything is submitted — pending items still need a reviewer.'}</p>
+      </section>
+      <aside class="stack">
+        ${card({ title: 'Seller identity', body: `
+          ${pfRow('Seller ID', esc(p.account.sellerId), true)}
+          ${pfRow('Account created', esc(p.account.createdAt))}
+          ${pfRow('Shop', esc(p.business.name))}
+          ${pfRow('Payout account', p.bank.find((b) => b.primary) ? pfMask(p.bank.find((b) => b.primary).full) : 'Not set', true)}
+          <div class="notice notice--plain mt-10">${icon('lock')}<span>Bank numbers and documents are masked everywhere. Customers and delivery partners never see them.</span></div>` })}
+        ${card({ title: 'Verification queue', sub: 'Sensitive changes need a reviewer.', action: pending.length ? `<span class="pill pill--amber"><i></i>${pending.length} pending</span>` : '', body: pending.length ? `<div class="stack-sm">${pending.map((ch) => `<div class="pf-mini"><b>${esc(ch.module)}</b><span>${esc(ch.field)} · ${esc(ch.at)}</span>${pfStatusPill(ch.status)}</div>`).join('')}</div>` : `<p class="small muted">Nothing waiting. Bank and business changes appear here until operations approve them.</p>` })}
+      </aside>
+    </div>
+
+    <div class="pf-modules">
+      ${modules.map((m) => `<article class="pf-module">
+        <span class="pf-module__icon">${icon(m.icon)}</span>
+        <div class="pf-module__body">
+          <div class="pf-module__title"><b>${m.title}</b>${pfStatusPill(m.badge)}</div>
+          <small>${m.copy}</small>
+          <div class="pf-module__meta">${m.meta}</div>
+        </div>
+        <button class="btn btn--ghost btn--sm" data-act="nav" data-surface="sell" data-view="${m.view}">${icon('sliders', 'sm')} Manage</button>
+      </article>`).join('')}
+    </div>
+
+    <div class="grid grid--2 mb-18">
+      ${card({ title: 'Change history', sub: 'Newest first · local to this browser', body: `<div class="rows" style="margin:-16px -18px">${p.changes.slice(0, 5).map((ch) => `<div class="list-row">
+        <span class="kpi__icon">${icon('refresh')}</span>
+        <div class="list-row__main"><b>${esc(ch.module)} · ${esc(ch.field)}</b><small>${esc(ch.from)} → ${esc(ch.to)} · ${esc(ch.at)}</small></div>
+        <div class="list-row__end">${pfStatusPill(ch.status)}</div>
+      </div>`).join('') || emptyState('refresh', 'No changes yet', 'Edits to your profile will be listed here.')}</div>` })}
+      ${card({ title: 'Who can edit what', sub: 'Demo permissions — enforced server-side in production.', body: `<div class="table-wrap"><table class="table pf-table">
+        <thead><tr><th>MODULE</th><th>OWNER</th><th>MANAGER</th><th>INVENTORY</th></tr></thead>
+        <tbody>
+          <tr><td>Account &amp; login</td><td>Edit</td><td>—</td><td>—</td></tr>
+          <tr><td>Locations</td><td>Edit</td><td>View</td><td>—</td></tr>
+          <tr><td>Bank details</td><td>Edit + verify</td><td>—</td><td>—</td></tr>
+          <tr><td>Business details</td><td>Edit + verify</td><td>View</td><td>—</td></tr>
+        </tbody>
+      </table></div><p class="tiny muted mt-10">Login credentials are visible to the owner only, never to shop staff.</p>` })}
+    </div>
+    ${card({ title: 'Where this record is used', sub: 'Enter it once here — every NearBuy surface reads the same seller record.', body: `<div class="pf-integ">${[
+      ['Customer portal', 'store', 'Shop name, category, address and storefront photos only.'],
+      ['NearBuy Runner', 'truck', 'Pickup addresses, contact person and handover instructions.'],
+      ['Payments', 'rupee', 'Verified legal name and the approved primary settlement account.'],
+      ['Operations', 'shield', 'Document review, change approval and the audit trail.']
+    ].map(([title, ic, copy]) => `<div class="pf-integ__item"><span class="pf-module__icon">${icon(ic)}</span><div><b>${title}</b><small>${copy}</small></div></div>`).join('')}</div><div class="notice notice--plain mt-12">${icon('lock')}<span>Bank numbers, PAN, GSTIN and uploaded documents stay inside Seller Hub and Operations. Customers and delivery partners never see them.</span></div>` })}
+    ${pfNotice('This is a prototype. No OTP is sent, no bank penny-drop runs, no document is uploaded and no reviewer is involved — every state below is simulated in your browser.', 'info')}
+  </div>`;
+}
+
+/* ------------------------------ account ----------------------------------- */
+function sellProfileAccount() {
+  const a = pfAccount();
+  const editing = ui.profileEdit === 'account';
+  const pwd = ui.profileEdit === 'password';
+  return `<div class="page">
+    ${pageHead('MANAGE PROFILE · ACCOUNT', 'Account details', 'Personal, primary and login information for this seller account.', `<button class="btn btn--ghost btn--sm" data-act="nav" data-surface="sell" data-view="profile">${icon('chevronLeft')} Manage profile</button>`)}
+    ${pfError()}
+    <div class="grid grid--aside">
+      <div class="stack">
+        <section class="card card--pad">
+          <div class="between wrap mb-14">
+            <div><h2 style="font-size:15px">Primary details</h2><p class="tiny muted">The name and contact details NearBuy uses for this shop.</p></div>
+            ${editing ? '' : `<button class="btn btn--ghost btn--sm" data-act="profile-edit" data-module="account">${icon('sliders')} Edit</button>`}
+          </div>
+          ${editing
+            ? `<form id="profileAccountForm" class="form-grid" novalidate>
+                 <div class="form-grid form-grid--2">
+                   ${pfField('Full name', 'fullName', a.fullName, { ph: 'Seller / account holder name' })}
+                   ${pfField('Mobile number', 'mobile', a.mobile, { ph: '10-digit mobile', inputmode: 'numeric', maxlength: '12' })}
+                 </div>
+                 ${pfField('Email address', 'email', a.email, { type: 'email', ph: 'you@shop.in' })}
+                 <div class="pf-upload">
+                   <span class="pf-upload__avatar">${a.photo ? esc(a.fullName.split(' ').map((x) => x[0]).join('').slice(0, 2)) : '?'}</span>
+                   <div><b class="small">Profile photo</b><div class="tiny muted">${a.photo ? 'Sample image on file.' : 'Add a clear photo of you or the shop front.'} Upload is a labelled placeholder in this demo.</div></div>
+                   <button class="btn btn--ghost btn--sm" type="button" data-act="profile-photo">${icon('plus')} ${a.photo ? 'Replace' : 'Upload'}</button>
+                 </div>
+                 ${pfSaveBar('Save details')}
+               </form>`
+            : `<div class="pf-list">
+                 ${pfRow('Full name', esc(a.fullName))}
+                 ${pfRow('Mobile number', esc(a.mobile))}
+                 ${pfRow('Email address', esc(a.email))}
+                 ${pfRow('Profile photo', a.photo ? `${pill('Uploaded', 'green')}` : `${pill('Missing', 'amber')}`)}
+                 ${pfRow('Seller ID', esc(a.sellerId), true)}
+                 ${pfRow('Account created', esc(a.createdAt))}
+                 ${pfRow('Account status', pfStatusPill(a.status))}
+               </div>`}
+        </section>
+
+        <section class="card card--pad">
+          <div class="between wrap mb-14">
+            <div><h2 style="font-size:15px">Login details</h2><p class="tiny muted">Credentials are private to the owner. Staff accounts never see them.</p></div>
+            ${pfStatusPill(a.twoStep ? 'Two-step on' : 'Two-step off')}
+          </div>
+          <div class="pf-list">
+            ${pfRow('Login mobile', esc(a.loginMobile))}
+            ${pfRow('Login email', esc(a.loginEmail))}
+            ${pfRow('Password', '<span class="pf-mono">••••••••••</span> <span class="tiny muted">last changed ' + esc(a.passwordChanged) + '</span>')}
+            ${pfRow('Two-step verification', `<button class="link" data-act="profile-2fa">${a.twoStep ? 'On · manage' : 'Off · enable'}</button>`)}
+            ${pfRow('Last login', esc(a.lastLogin))}
+          </div>
+          ${pwd
+            ? `<form id="profilePasswordForm" class="form-grid mt-14" novalidate>
+                 ${pfField('Current password', 'current', '', { type: 'password', ph: 'Enter current password', hint: 'Never stored or displayed in this demo.' })}
+                 <div class="form-grid form-grid--2">
+                   ${pfField('New password', 'password', '', { type: 'password', ph: 'At least 8 characters' })}
+                   ${pfField('Confirm new password', 'confirm', '', { type: 'password', ph: 'Repeat the new password' })}
+                 </div>
+                 ${pfSaveBar('Update password')}
+               </form>`
+            : `<div class="row gap-8 wrap mt-12">
+                 <button class="btn btn--ghost btn--sm" data-act="profile-edit" data-module="password">${icon('lock')} Change password</button>
+                 <button class="btn btn--ghost btn--sm" data-act="profile-edit" data-module="account">${icon('mail')} Update login details</button>
+               </div>`}
+        </section>
+
+        <section class="card card--flush">
+          <div class="card__head"><div><h2>Active sessions</h2><p>Sign out of devices you no longer use.</p></div><button class="btn btn--ghost btn--sm" data-act="profile-signout-all">${icon('logout')} Sign out other devices</button></div>
+          <div class="rows" style="margin:0">
+            ${a.sessions.map((s) => `<div class="list-row">
+              <span class="kpi__icon">${icon(s.current ? 'phone' : 'user')}</span>
+              <div class="list-row__main"><b>${esc(s.device)}</b><small>${esc(s.place)} · ${esc(s.at)}</small></div>
+              <div class="list-row__end">${s.current ? pill('This device', 'green') : `<button class="btn btn--ghost btn--xs" data-act="profile-signout" data-id="${s.id}">Sign out</button>`}</div>
+            </div>`).join('') || emptyState('phone', 'No other sessions', 'Only this device is signed in.')}
+          </div>
+        </section>
+      </div>
+      <aside class="stack">
+        ${card({ title: 'Security rules', body: `<ul class="ticks">${['Changing your mobile number needs OTP verification.', 'Changing your email needs email verification.', 'Passwords are never displayed, here or anywhere else.', 'Staff accounts can never read or change login credentials.'].map((t) => `<li>${icon('check')} ${t}</li>`).join('')}</ul>` })}
+        ${card({ title: 'Coming from the old sign-in?', body: `<p class="small muted">Registration captured your name, mobile and email. This page is where you keep them accurate — no need to register twice.</p><button class="btn btn--ghost btn--sm btn--block mt-10" data-act="nav" data-surface="sell" data-view="register">${icon('clipboard')} View registration</button>` })}
+      </aside>
+    </div>
+  </div>`;
+}
+
+/* ------------------------------ locations --------------------------------- */
+function sellProfileLocations() {
+  const locs = pfLocations();
+  const editId = String(ui.profileEdit || '');
+  const isNew = editId === 'loc:new';
+  const editing = isNew || editId.startsWith('loc:');
+  const current = isNew ? null : locs.find((l) => `loc:${l.id}` === editId);
+  const types = ['Shop location', 'Pickup location', 'Warehouse', 'Return location', 'Additional branch'];
+  return `<div class="page">
+    ${pageHead('MANAGE PROFILE · LOCATIONS', 'Manage locations', 'Shop, pickup and return addresses, each with its own hours and service area.', `<button class="btn btn--ghost btn--sm" data-act="nav" data-surface="sell" data-view="profile">${icon('chevronLeft')} Manage profile</button>
+      <button class="btn btn--primary btn--sm" data-act="profile-edit" data-module="loc:new">${icon('plus')} Add location</button>`)}
+    ${pfError()}
+    ${editing ? `<section class="card card--pad mb-18">
+      <div class="between wrap mb-14"><div><h2 style="font-size:15px">${isNew ? 'Add a location' : 'Edit location'}</h2><p class="tiny muted">Address, contact, hours and coverage for this location.</p></div>${pfStatusPill(isNew ? 'Pending review' : 'Draft')}</div>
+      <form id="profileLocationForm" class="form-grid" novalidate>
+        <input type="hidden" name="id" value="${esc(current ? current.id : '')}" />
+        <div class="form-grid form-grid--2">
+          ${pfSelect('Location type', 'type', current ? current.type : 'Shop location', types)}
+          ${pfField('Location name', 'label', current ? current.label : '', { ph: 'e.g. Green Basket Market — main shop' })}
+        </div>
+        <div class="form-grid form-grid--2">
+          ${pfField('Building / shop number', 'building', current ? current.building : '', { ph: 'Shop 14' })}
+          ${pfField('Street / locality', 'street', current ? current.street : '', { ph: 'Hauz Khas Village' })}
+        </div>
+        ${pfField('Landmark', 'landmark', current ? current.landmark : '', { ph: 'Opposite the Deer Park gate', required: false })}
+        <div class="form-grid form-grid--3">
+          ${pfField('City', 'city', current ? current.city : 'New Delhi')}
+          ${pfField('State', 'state', current ? current.state : 'Delhi')}
+          ${pfField('PIN code', 'pin', current ? current.pin : '', { inputmode: 'numeric', maxlength: '6' })}
+        </div>
+        <div class="form-grid form-grid--2">
+          ${pfField('Contact person', 'contact', current ? current.contact : '', { ph: 'Who the runner should ask for' })}
+          ${pfField('Contact mobile', 'phone', current ? current.phone : '', { inputmode: 'numeric', maxlength: '12' })}
+        </div>
+        <div class="form-grid form-grid--2">
+          ${pfField('Opening hours', 'hours', current ? current.hours : '8:00 am – 10:00 pm')}
+          ${pfField('Pickup availability', 'pickupHours', current ? current.pickupHours : '9:00 am – 9:30 pm')}
+        </div>
+        ${pfField('Handover instructions', 'instructions', current ? current.instructions : '', { ph: 'Where parcels wait, who to ask for', required: false })}
+        <div class="subhead" style="margin:8px 0 0"><span class="tiny muted">Service area — separate from the shop address</span></div>
+        <div class="form-grid form-grid--2">
+          ${pfField('Serviceable PIN codes', 'servicePins', current ? current.servicePins : '110016', { ph: '110016, 110017', hint: 'Comma separated. Delivery is only offered inside this coverage.' })}
+          ${pfField('Delivery radius (km)', 'radius', current ? String(current.radius) : '2', { inputmode: 'numeric', maxlength: '1', hint: '1–3 km in this demo. Capped by your service area.' })}
+        </div>
+        ${pfSaveBar(isNew ? 'Add location' : 'Save location')}
+      </form>
+    </section>` : ''}
+
+    <div class="pf-loc-grid mb-18">
+      ${locs.map((l) => `<article class="card card--pad pf-loc">
+        <div class="between wrap mb-10">
+          <div class="row gap-8"><span class="pf-module__icon" style="width:30px;height:30px">${icon(l.type === 'Pickup location' ? 'truck' : l.type === 'Return location' ? 'refresh' : 'store')}</span><div><b class="small">${esc(l.label)}</b><div class="tiny muted">${esc(l.type)}</div></div></div>
+          <div class="row gap-6 wrap">${l.defaultPickup ? pill('Default pickup', 'green') : ''}${l.type === 'Shop location' ? pill('Customer-facing', 'blue') : ''}</div>
+        </div>
+        <p class="small" style="line-height:1.55">${esc(l.building)}, ${esc(l.street)}${l.landmark ? `, ${esc(l.landmark)}` : ''}<br>${esc(l.city)} ${esc(l.pin)} · ${esc(l.state)}</p>
+        <div class="pf-loc__meta">
+          ${pfRow('Contact', `${esc(l.contact)} · ${esc(l.phone)}`)}
+          ${pfRow('Hours', esc(l.hours))}
+          ${pfRow('Pickup', esc(l.pickupHours))}
+          ${pfRow('Service area', `${esc(l.servicePins)} · ${l.radius} km`)}
+        </div>
+        <div class="row gap-6 wrap mt-10">
+          <button class="btn btn--ghost btn--xs" data-act="profile-edit" data-module="loc:${l.id}">${icon('sliders', 'sm')} Edit</button>
+          ${l.type === 'Pickup location' && !l.defaultPickup ? `<button class="btn btn--ghost btn--xs" data-act="loc-default" data-id="${l.id}">${icon('check', 'sm')} Make default pickup</button>` : ''}
+          ${l.type !== 'Shop location' ? `<button class="btn btn--ghost btn--xs" data-act="loc-remove" data-id="${l.id}">${icon('x', 'sm')} Remove</button>` : ''}
+        </div>
+      </article>`).join('')}
+    </div>
+
+    <div class="grid grid--2">
+      ${card({ title: 'How locations are used', body: `<div class="stack-sm">${[['Shop location', 'Shown to customers and used for pickup distance.'], ['Pickup location', 'Where a Runner collects the parcel — visible to that partner only, and only after acceptance.'], ['Return location', 'Where customers bring returns.'], ['Warehouse / branch', 'Stock and additional outlets; not customer-facing.']].map(([t, s]) => `<div class="pf-mini"><b>${t}</b><span>${s}</span></div>`).join('')}</div>` })}
+      ${card({ title: 'Coverage rules', body: `${pfRow('Delivery coverage', 'Serviceable PINs shown to customers')}${pfRow('Address vs coverage', 'Separate settings')}${pfRow('Branch-wise areas', 'Each location keeps its own')}${pfRow('Default pickup', esc((locs.find((l) => l.defaultPickup) || {}).label || 'Not set'))}<p class="tiny muted mt-10">NearBuy distinguishes where your shop is from where you actually deliver. A location inside the network can still be outside its delivery radius.</p>` })}
+    </div>
+  </div>`;
+}
+
+/* -------------------------------- bank ------------------------------------ */
+function sellProfileBank() {
+  const banks = pfBanks();
+  const editId = String(ui.profileEdit || '');
+  const isNew = editId === 'bank:new';
+  const editing = isNew || editId.startsWith('bank:');
+  const current = isNew ? null : banks.find((b) => `bank:${b.id}` === editId);
+  return `<div class="page">
+    ${pageHead('MANAGE PROFILE · PAYMENTS', 'Bank details', 'The account eligible NearBuy settlements are transferred to.', `<button class="btn btn--ghost btn--sm" data-act="nav" data-surface="sell" data-view="profile">${icon('chevronLeft')} Manage profile</button>
+      <button class="btn btn--primary btn--sm" data-act="profile-edit" data-module="bank:new">${icon('plus')} Add bank account</button>`)}
+    ${pfError()}
+    ${editing ? `<section class="card card--pad mb-18">
+      <div class="between wrap mb-14"><div><h2 style="font-size:15px">${isNew ? 'Add a bank account' : 'Update bank account'}</h2><p class="tiny muted">Account details are masked after saving and need verification before payouts.</p></div>${pfStatusPill(isNew ? 'Pending review' : 'Draft')}</div>
+      <form id="profileBankForm" class="form-grid" novalidate>
+        <input type="hidden" name="id" value="${esc(current ? current.id : '')}" />
+        <div class="form-grid form-grid--2">
+          ${pfField('Account holder name', 'holder', current ? current.holder : '')}
+          ${pfField('Bank name', 'bankName', current ? current.bankName : '', { ph: 'HDFC Bank' })}
+        </div>
+        <div class="form-grid form-grid--2">
+          ${pfField('Account number', 'account', '', { inputmode: 'numeric', maxlength: '18', ph: current ? 'Leave blank to keep the current account' : '9–18 digits', required: !current })}
+          ${pfField('Confirm account number', 'confirm', '', { inputmode: 'numeric', maxlength: '18', ph: 'Re-enter the account number', required: !current })}
+        </div>
+        <div class="form-grid form-grid--3">
+          ${pfField('IFSC code', 'ifsc', current ? current.ifsc : '', { maxlength: '11', ph: 'HDFC0001234' })}
+          ${pfSelect('Account type', 'type', current ? current.type : 'Savings', ['Savings', 'Current'])}
+          ${pfField('Branch', 'branch', current ? current.branch : '', { ph: 'Hauz Khas', required: false })}
+        </div>
+        ${pfNotice('Changing payout details triggers re-verification: the account stays unusable for settlements until operations approve it. Every change is logged and notified.', 'info')}
+        ${pfSaveBar(isNew ? 'Add account' : 'Save and request verification')}
+      </form>
+    </section>` : ''}
+
+    <div class="grid grid--aside">
+      <div class="stack">
+        ${banks.length ? banks.map((b) => `<section class="card card--pad">
+          <div class="between wrap mb-12">
+            <div class="row gap-10"><span class="pf-module__icon">${icon('wallet')}</span><div><b>${esc(b.bankName)}</b><div class="tiny muted">${esc(b.type)} · ${esc(b.branch)} branch</div></div></div>
+            <div class="row gap-6 wrap">${b.primary ? pill('Primary settlement', 'green', true) : ''}${pfStatusPill(b.status)}</div>
+          </div>
+          <div class="pf-list">
+            ${pfRow('Account holder', esc(b.holder))}
+            ${pfRow('Account number', `<span class="pf-mono">${pfMask(b.full)}</span>`)}
+            ${pfRow('IFSC', esc(b.ifsc), true)}
+            ${pfRow('Verified on', esc(b.verifiedAt || 'Not yet'))}
+          </div>
+          <div class="row gap-6 wrap mt-12">
+            <button class="btn btn--ghost btn--xs" data-act="profile-edit" data-module="bank:${b.id}">${icon('sliders', 'sm')} Update</button>
+            ${!b.primary && b.status === 'Verified' ? `<button class="btn btn--ghost btn--xs" data-act="bank-primary" data-id="${b.id}">${icon('check', 'sm')} Set as primary</button>` : ''}
+            ${!b.primary ? `<button class="btn btn--ghost btn--xs" data-act="bank-remove" data-id="${b.id}">${icon('x', 'sm')} Remove</button>` : ''}
+          </div>
+        </section>`).join('') : card({ body: emptyState('wallet', 'No payout account', 'Add a bank account to receive settlements.', `<button class="btn btn--ghost btn--sm mt-10" data-act="profile-edit" data-module="bank:new">Add bank account</button>`) })}
+        ${card({ title: 'Recent settlements', sub: 'Demo ledger · nothing is paid', action: `<button class="link" data-act="nav" data-surface="sell" data-view="payments">All settlements ${icon('arrowRight')}</button>`, body: `<div class="table-wrap"><table class="table pf-table">
+          <thead><tr><th>SETTLEMENT</th><th>DATE</th><th>NET</th><th>UTR</th><th>STATUS</th></tr></thead>
+          <tbody>
+            <tr><td>STL-2041</td><td>8 Nov</td><td>₹4,820</td><td class="pf-mono">HDFC0008842</td><td>${pill('Settled', 'green')}</td></tr>
+            <tr><td>STL-2038</td><td>1 Nov</td><td>₹3,940</td><td class="pf-mono">HDFC0007710</td><td>${pill('Settled', 'green')}</td></tr>
+            <tr><td>STL-2035</td><td>25 Oct</td><td>₹2,180</td><td class="pf-mono">HDFC0006512</td><td>${pill('Processing', 'amber')}</td></tr>
+          </tbody>
+        </table></div><p class="tiny muted mt-10">Failed or pending settlements are listed here once a bank responds. No bank is connected in this prototype.</p>` })}
+      </div>
+      <aside class="stack">
+        ${card({ title: 'Verification workflow', body: `<div class="timeline">${[['Enter account details', 'Holder, bank, account and IFSC.'], ['Verification service', 'Holder and account checked by an approved provider.'], ['Extra authentication', 'Where the provider requires it.'], ['Status shown here', 'Pending, verified or rejected.'], ['Settlements enabled', 'Only verified accounts receive money.']].map(([t, s], i) => `<div class="timeline__row ${i === 1 ? 'now' : ''}"><span class="timeline__dot">${icon(i === 1 ? 'clock' : 'check')}</span><div class="timeline__body"><b>${t}</b><small>${s}</small></div></div>`).join('')}</div>` })}
+        ${card({ body: `${pfNotice('No penny-drop, UPI mandate or bank API exists here. Account numbers are masked everywhere and every change is logged.', 'plain')}` })}
+      </aside>
+    </div>
+  </div>`;
+}
+
+/* ------------------------------- business --------------------------------- */
+function sellProfileBusiness() {
+  const b = pfBusiness();
+  const editing = ui.profileEdit === 'business';
+  const docPill = (s) => pfStatusPill(s);
+  return `<div class="page">
+    ${pageHead('MANAGE PROFILE · BUSINESS', 'Business details', 'Shop identity, registration and documents used across NearBuy.', `<button class="btn btn--ghost btn--sm" data-act="nav" data-surface="sell" data-view="profile">${icon('chevronLeft')} Manage profile</button>
+      ${editing ? '' : `<button class="btn btn--primary btn--sm" data-act="profile-edit" data-module="business">${icon('sliders')} Edit details</button>`}`)}
+    ${pfError()}
+    ${editing ? `<section class="card card--pad mb-18">
+      <div class="between wrap mb-14"><div><h2 style="font-size:15px">Edit business details</h2><p class="tiny muted">Legal identity changes need operations approval before they apply.</p></div>${pfStatusPill('Draft')}</div>
+      <form id="profileBusinessForm" class="form-grid" novalidate>
+        <div class="form-grid form-grid--2">
+          ${pfField('Business name', 'name', b.name)}
+          ${pfField('Legal business name', 'legalName', b.legalName)}
+        </div>
+        <div class="form-grid form-grid--2">
+          ${pfSelect('Business type', 'type', b.type, ['Proprietorship', 'Partnership', 'LLP', 'Company', 'Other'])}
+          ${pfSelect('Business category', 'category', b.category, ['Grocery and daily essentials', 'Stationery and books', 'General store', 'Convenience store', 'Other eligible retail'])}
+        </div>
+        <label class="field"><span>Business description</span><textarea class="textarea" name="description" rows="3">${esc(b.description)}</textarea></label>
+        <div class="form-grid form-grid--3">
+          ${pfField('Year established', 'year', b.year, { inputmode: 'numeric', maxlength: '4' })}
+          ${pfField('Number of outlets', 'outlets', b.outlets, { inputmode: 'numeric', maxlength: '2' })}
+          ${pfField('Ownership', 'ownership', b.ownership, { required: false })}
+        </div>
+        <div class="form-grid form-grid--3">
+          ${pfField('PAN', 'pan', b.pan, { maxlength: '10', ph: 'ABCDE1234F', required: false })}
+          ${pfField('GSTIN', 'gstin', b.gstin, { maxlength: '15', ph: '07ABCDE1234F1Z5', required: false })}
+          ${pfField('Registration number', 'regNumber', b.regNumber, { required: false })}
+        </div>
+        ${pfField('Applicable licences', 'licences', b.licences, { required: false })}
+        ${pfField('Registered business address', 'address', b.address)}
+        ${pfNotice('Only documents relevant to your business type are requested. Uploads are simulated; nothing leaves this browser.', 'info')}
+        ${pfSaveBar('Save business details')}
+      </form>
+    </section>` : ''}
+
+    <div class="grid grid--aside">
+      <div class="stack">
+        ${card({ title: 'Basic business information', action: `<button class="btn btn--ghost btn--sm" data-act="profile-edit" data-module="business">${icon('sliders')} Edit</button>`, body: `<div class="pf-list">
+          ${pfRow('Business name', esc(b.name))}
+          ${pfRow('Legal business name', esc(b.legalName))}
+          ${pfRow('Business type', esc(b.type))}
+          ${pfRow('Category', esc(b.category))}
+          ${pfRow('Year established', esc(b.year))}
+          ${pfRow('Outlets', esc(b.outlets))}
+          ${pfRow('Ownership', esc(b.ownership))}
+        </div><p class="small muted mt-10" style="line-height:1.6">${esc(b.description)}</p>` })}
+
+        ${card({ title: 'Registration details', body: `<div class="pf-list">
+          ${pfRow('PAN', `<span class="pf-mono">${pfMaskPan(b.pan)}</span>`)}
+          ${pfRow('GSTIN', `<span class="pf-mono">${esc(pfMaskGstin(b.gstin))}</span>`)}
+          ${pfRow('Registration number', esc(b.regNumber))}
+          ${pfRow('Licences', esc(b.licences))}
+          ${pfRow('Registered address', esc(b.address))}
+        </div>` })}
+
+        ${card({ title: 'Business documents', sub: `Only what a ${esc(b.type.toLowerCase())} must submit — upload, replace and track verification.`, body: `<div class="rows" style="margin:-16px -18px">${b.documents.map((d) => `<div class="list-row">
+          <span class="table__thumb">${icon('clipboard')}</span>
+          <div class="list-row__main"><b>${esc(d.name)}</b><small>${esc(d.at)}</small></div>
+          <div class="list-row__end">${docPill(d.status)}<button class="btn btn--ghost btn--xs" data-act="doc-upload" data-id="${d.id}">${icon('plus', 'sm')} ${d.status === 'Verified' ? 'Replace' : 'Upload'}</button></div>
+        </div>`).join('')}</div><div class="notice notice--plain mt-12">${icon('lock')}<span>Documents are visible to you and NearBuy operations only. ${esc(b.type)} sellers are never asked for a partnership deed or an incorporation certificate.</span></div>` })}
+      </div>
+      <aside class="stack">
+        ${card({ title: 'Shop presentation', body: `
+          <div class="pf-upload">
+            <span class="pf-upload__avatar">${b.logo ? 'GB' : '?'}</span>
+            <div><b class="small">Business logo</b><div class="tiny muted">${b.logo ? 'Sample logo on file.' : 'No logo uploaded.'}</div></div>
+            <button class="btn btn--ghost btn--sm" data-act="doc-media" data-media="logo">${icon('plus')} ${b.logo ? 'Replace' : 'Upload'}</button>
+          </div>
+          <div class="pf-upload mt-10">
+            <span class="pf-upload__avatar">${b.photos ? '3' : '0'}</span>
+            <div><b class="small">Shop photos</b><div class="tiny muted">${b.photos ? '3 sample photos.' : 'Storefront and interior photos help customers trust the shop.'}</div></div>
+            <button class="btn btn--ghost btn--sm" data-act="doc-media" data-media="photos">${icon('plus')} ${b.photos ? 'Add' : 'Upload'}</button>
+          </div>` })}
+        ${card({ title: 'Approval rule', body: `${pfNotice('Legal name, PAN, GSTIN and document replacements are queued for operations review. Until approved they stay marked pending and the verified details remain in force.', 'plain')}` })}
+        ${card({ title: 'Used by', body: `<div class="stack-sm">${[['Customer portal', 'Shop name, category, storefront photo'], ['NearBuy Runner', 'Pickup contact and handover notes'], ['Payments', 'Verified legal name on settlements'], ['Operations', 'Verification and document review']].map(([t, s]) => `<div class="pf-mini"><b>${t}</b><span>${s}</span></div>`).join('')}</div><div class="notice notice--plain mt-10">${icon('lock')}<span>PAN, GSTIN and documents are never shown to customers or delivery partners.</span></div>` })}
+      </aside>
+    </div>
+  </div>`;
+}
+
+/* ------------------------------- handlers --------------------------------- */
+function profileFail(error, fd) {
+  ui.profileError = error;
+  ui.profileDraft = {};
+  if (fd && fd.forEach) fd.forEach((v, k) => { ui.profileDraft[k] = v; });
+  paint();
+  const form = document.querySelector('form[id^="profile"]');
+  if (form && form.elements) {
+    Object.keys(ui.profileDraft).forEach((k) => {
+      const el = form.elements[k];
+      if (el && !el.length && 'value' in el) el.value = ui.profileDraft[k];
+    });
+    const first = form.querySelector('input:not([type="hidden"]), select, textarea');
+    if (first && first.focus) first.focus();
+  }
+}
+function profileEdit(module) {
+  ui.profileEdit = module;
+  ui.profileDraft = null;
+  ui.profileError = '';
+  paint();
+}
+function profileCancel() {
+  ui.profileEdit = '';
+  ui.profileDraft = null;
+  ui.profileError = '';
+  paint();
+}
+function profileSaveAccount(fd) {
+  const a = pfAccount();
+  const name = String(fd.get('fullName') || '').trim();
+  const mobile = String(fd.get('mobile') || '').trim();
+  const email = String(fd.get('email') || '').trim();
+  if (name.length < 2) return 'Enter the account holder’s full name.';
+  if (!/^[6-9]\d{9}$/.test(mobile.replace(/\D/g, '').slice(-10))) return 'Enter a valid 10-digit mobile number.';
+  if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(email)) return 'Enter a valid email address.';
+  const changed = [];
+  if (mobile !== a.mobile) { a.loginMobile = mobile; changed.push('mobile'); }
+  if (email !== a.email) { a.loginEmail = email; changed.push('email'); }
+  a.fullName = name; a.mobile = mobile; a.email = email;
+  if (!changed.length) return null;
+  pfAddChange({ module: 'Account details', field: changed.join(' & '), from: 'Previous contact details', to: 'Updated', status: 'Approved' });
+  audit('Profile updated', `Account details · ${changed.join(', ')}`, 'Seller owner');
+  notify('sell', 'Account details updated', 'Login mobile and email are updated for this shop.');
+  toast('Account details saved.', 'checkCircle');
+  return null;
+}
+function profileSavePassword(fd) {
+  const current = String(fd.get('current') || '');
+  const pw = String(fd.get('password') || '');
+  const confirm = String(fd.get('confirm') || '');
+  if (!current) return 'Enter your current password to continue.';
+  if (pw.length < 8) return 'Choose a password with at least 8 characters.';
+  if (!/[A-Za-z]/.test(pw) || !/\d/.test(pw)) return 'Include at least one letter and one number.';
+  if (pw !== confirm) return 'The two new passwords do not match.';
+  const a = pfAccount();
+  a.passwordChanged = 'Just now';
+  audit('Password changed', 'Seller account · password rotated', 'Seller owner');
+  notify('sell', 'Password changed', 'If this was not you, sign out all devices immediately.');
+  toast('Password updated. Other sessions were kept signed in in this demo.', 'lock');
+  return null;
+}
+function profileSaveLocation(fd) {
+  const id = String(fd.get('id') || '');
+  const type = String(fd.get('type') || 'Shop location');
+  const label = String(fd.get('label') || '').trim();
+  const street = String(fd.get('street') || '').trim();
+  const pin = String(fd.get('pin') || '').trim();
+  const city = String(fd.get('city') || '').trim();
+  const contact = String(fd.get('contact') || '').trim();
+  const phone = String(fd.get('phone') || '').replace(/\D/g, '').slice(-10);
+  const servicePins = String(fd.get('servicePins') || '').trim();
+  const radius = Number(fd.get('radius'));
+  if (label.length < 2) return 'Give this location a name your team will recognise.';
+  if (street.length < 3) return 'Enter the street or locality.';
+  if (!/^\d{6}$/.test(pin)) return 'Enter a valid 6-digit PIN code.';
+  if (!city) return 'Enter the city.';
+  if (contact.length < 2) return 'Name the contact person for this location.';
+  if (!/^[6-9]\d{9}$/.test(phone)) return 'Enter a valid 10-digit contact mobile number.';
+  if (radius < 1 || radius > 3) return 'Set a delivery radius between 1 and 3 km.';
+  if (type === 'Shop location' && !servicePins) return 'Add at least one serviceable PIN code for the shop.';
+  if (!/^\d{6}(\s*,\s*\d{6})*$/.test(servicePins)) return 'Serviceable PIN codes look invalid. Use six-digit codes separated by commas.';
+
+  const locs = pfLocations();
+  const data = {
+    type, label, building: String(fd.get('building') || '').trim(), street,
+    landmark: String(fd.get('landmark') || '').trim(), city, state: String(fd.get('state') || '').trim(),
+    pin, contact, phone, hours: String(fd.get('hours') || '').trim(), pickupHours: String(fd.get('pickupHours') || '').trim(),
+    instructions: String(fd.get('instructions') || '').trim(), servicePins, radius
+  };
+  if (id) {
+    const loc = locs.find((l) => l.id === id);
+    if (!loc) return 'That location no longer exists.';
+    Object.assign(loc, data, { lat: loc.lat, lng: loc.lng });
+    pfAddChange({ module: 'Locations', field: label, from: 'Previous address', to: `${street}, ${pin}`, status: 'Approved' });
+    audit('Location updated', `${label} · ${street} ${pin}`, 'Seller owner');
+    toast('Location updated. Runner pickup instructions follow it.', 'pin');
+  } else {
+    locs.push({ id: uid('loc'), ...data, lat: '28.55', lng: '77.19', defaultPickup: false });
+    pfAddChange({ module: 'Locations', field: label, from: '—', to: `${street}, ${pin}`, status: 'Approved' });
+    audit('Location added', `${label} · ${type}`, 'Seller owner');
+    toast('Location added.', 'pin');
+  }
+  notify('sell', 'Location saved', `${label} · ${pin}`);
+  return null;
+}
+function profileSaveBank(fd) {
+  const id = String(fd.get('id') || '');
+  const holder = String(fd.get('holder') || '').trim();
+  const bankName = String(fd.get('bankName') || '').trim();
+  const account = String(fd.get('account') || '').replace(/\D/g, '');
+  const confirm = String(fd.get('confirm') || '').replace(/\D/g, '');
+  const ifsc = String(fd.get('ifsc') || '').trim().toUpperCase();
+  const type = String(fd.get('type') || 'Savings');
+  const branch = String(fd.get('branch') || '').trim();
+  if (holder.length < 2) return 'Enter the account holder name exactly as printed by the bank.';
+  if (bankName.length < 2) return 'Enter the bank name.';
+  if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) return 'Enter a valid IFSC code, for example HDFC0001234.';
+  if (!id || account) {
+    if (!/^\d{9,18}$/.test(account)) return 'Enter a valid bank account number (9–18 digits).';
+    if (account !== confirm) return 'The two account numbers do not match.';
+  }
+  const banks = pfBanks();
+  if (id) {
+    const b = banks.find((x) => x.id === id);
+    if (!b) return 'That bank account no longer exists.';
+    Object.assign(b, { holder, bankName, ifsc, type, branch, status: 'Pending review', verifiedAt: '' });
+    if (account) { b.full = account; b.last4 = account.slice(-4); }
+    pfAddChange({ module: 'Bank details', field: 'Settlement account', from: pfMask(b.full), to: pfMask(account || b.full), status: 'Pending review' });
+    audit('Bank details changed', `${bankName} ${pfMask(b.full)} · verification required`, 'Seller owner');
+  } else {
+    const b = { id: uid('bank'), holder, bankName, full: account, last4: account.slice(-4), ifsc, type, branch, status: 'Pending review', primary: false, verifiedAt: '' };
+    banks.push(b);
+    pfAddChange({ module: 'Bank details', field: 'New settlement account', from: '—', to: pfMask(account), status: 'Pending review' });
+    audit('Bank account added', `${bankName} ${pfMask(account)} · pending verification`, 'Seller owner');
+  }
+  notify('ops', 'Bank change needs review', `${bankName} · ${pfMask(account || '')} · seller owner`);
+  notify('sell', 'Verification started', 'Payouts stay on the verified account until this one is approved.');
+  toast('Saved. This account needs verification before it can receive settlements.', 'shield');
+  return null;
+}
+function profileSaveBusiness(fd) {
+  const b = pfBusiness();
+  const name = String(fd.get('name') || '').trim();
+  const legalName = String(fd.get('legalName') || '').trim();
+  const pan = String(fd.get('pan') || '').trim().toUpperCase();
+  const gstin = String(fd.get('gstin') || '').trim().toUpperCase();
+  const year = String(fd.get('year') || '').trim();
+  if (name.length < 2) return 'Enter the shop name customers will see.';
+  if (legalName.length < 2) return 'Enter the registered legal business name.';
+  if (year && !/^(19|20)\d{2}$/.test(year)) return 'Enter a valid four-digit year.';
+  if (pan && !/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) return 'A PAN looks like ABCDE1234F. Leave it blank if not applicable.';
+  if (gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z][0-9A-Z]Z[0-9A-Z]$/.test(gstin)) return 'That GSTIN does not look valid. Leave it blank if the shop is not registered.';
+  const sensitive = pan !== b.pan || gstin !== b.gstin || legalName !== b.legalName;
+  Object.assign(b, {
+    name, legalName, pan, gstin, year, type: String(fd.get('type') || b.type),
+    category: String(fd.get('category') || b.category), description: String(fd.get('description') || '').trim(),
+    outlets: String(fd.get('outlets') || b.outlets), ownership: String(fd.get('ownership') || b.ownership),
+    regNumber: String(fd.get('regNumber') || '').trim(), licences: String(fd.get('licences') || '').trim(),
+    address: String(fd.get('address') || '').trim()
+  });
+  pfSyncDocs(b.type);
+  if (sensitive) {
+    pfAddChange({ module: 'Business details', field: 'Legal identity', from: 'Previous registration', to: legalName, status: 'Pending review' });
+    notify('ops', 'Business identity change', `${legalName} · needs review`);
+    audit('Business identity change requested', `${legalName} · PAN/GSTIN updated`, 'Seller owner');
+    toast('Business details saved. Legal identity changes need operations approval.', 'clipboard');
+  } else {
+    pfAddChange({ module: 'Business details', field: 'Shop information', from: 'Previous details', to: 'Updated', status: 'Approved' });
+    audit('Business details updated', `${name} · ${categoryLabelSafe(fd)}`, 'Seller owner');
+    toast('Business details saved and visible across NearBuy.', 'store');
+  }
+  notify('sell', 'Business details saved', `${name} · ${String(fd.get('category') || '')}`);
+  return null;
+}
+function categoryLabelSafe(fd) { return String(fd.get('category') || '').slice(0, 40); }
+
+/* ------------------------------ ops review -------------------------------- */
+function opsProfileChanges() {
+  const pending = pfPendingChanges();
+  const docs = pfBusiness().documents.filter((d) => d.status === 'Pending review');
+  const banks = pfBanks().filter((b) => b.status !== 'Verified');
+  return `<div class="page">
+    ${pageHead('OPS · PROFILE CHANGES', 'Profile changes', 'Sensitive seller edits wait here for approval. Approving updates the seller record and notifies the shop.', `<span class="chip active">${icon('shield')} ${adminSession()?.role || 'Reviewer'} · demo</span>`)}
+    <div class="grid grid--kpi">
+      ${kpi({ label: 'Pending changes', value: pending.length, icon: 'refresh', foot: 'bank & business edits' })}
+      ${kpi({ label: 'Documents waiting', value: docs.length, icon: 'clipboard', foot: 'uploaded by the seller' })}
+      ${kpi({ label: 'Unverified accounts', value: banks.length, icon: 'wallet', foot: 'cannot receive payouts' })}
+      ${kpi({ label: 'Approved changes', value: pfProfile().changes.filter((c) => c.status === 'Approved').length, icon: 'checkCircle', foot: 'in this demo' })}
+    </div>
+    <div class="grid grid--aside">
+      <section class="card card--flush">
+        <div class="card__head"><div><h2>Review queue</h2><p>Every decision is written to the audit log and notifies the seller.</p></div></div>
+        <div class="rows">${pending.length ? pending.map((ch) => `<div class="list-row">
+          <span class="kpi__icon">${icon('refresh')}</span>
+          <div class="list-row__main"><b>${esc(ch.module)} · ${esc(ch.field)}</b><small>${esc(ch.from)} → ${esc(ch.to)} · ${esc(ch.at)} · ${esc(ch.id)}</small></div>
+          <div class="list-row__end">${pfStatusPill(ch.status)}<button class="btn btn--primary btn--xs" data-act="change-approve" data-id="${ch.id}">${icon('check', 'sm')} Approve</button><button class="btn btn--ghost btn--xs" data-act="change-reject" data-id="${ch.id}">${icon('x', 'sm')} Reject</button></div>
+        </div>`).join('') : emptyState('checkCircle', 'Nothing waiting', 'Bank and business changes land here as sellers edit their profile.')}</div>
+      </section>
+      <aside class="stack">
+        ${card({ title: 'Sensitive change policy', body: `<ul class="ticks">${['Bank account changes always require re-verification.', 'Legal name, PAN and GSTIN changes need a reviewer.', 'A rejection carries a reason and an appeal route.', 'Payouts stay on the verified account until approval.'].map((t) => `<li>${icon('check')} ${t}</li>`).join('')}</ul><div class="notice notice--plain mt-10">${icon('lock')}<span>Demo workflow. No KYC or banking provider is involved, and no money moves.</span></div>` })}
+        ${card({ title: 'Seller record', body: `${pfRow('Shop', esc(pfBusiness().name))}${pfRow('Seller ID', esc(pfAccount().sellerId), true)}${pfRow('Locations', String(pfLocations().length))}${pfRow('Verified payout', pfBanks().some((b) => b.status === 'Verified') ? 'Yes' : 'No')}<button class="btn btn--ghost btn--sm btn--block mt-10" data-act="nav" data-surface="ops" data-view="verifications">${icon('clipboard')} Seller applications</button>` })}
+      </aside>
+    </div>
+  </div>`;
+}
+function decideProfileChange(id, approve) {
+  const ch = pfProfile().changes.find((c) => c.id === id);
+  if (!ch) return;
+  ch.status = approve ? 'Approved' : 'Rejected';
+  const p = pfProfile();
+  if (ch.module === 'Bank details') {
+    const bank = p.bank.find((b) => b.status === 'Pending review');
+    if (bank) {
+      bank.status = approve ? 'Verified' : 'Correction required';
+      bank.verifiedAt = approve ? nowLabel() : '';
+    }
+  }
+  if (ch.module === 'Business details') {
+    p.business.documents.filter((d) => d.status === 'Pending review').forEach((d) => {
+      d.status = approve ? 'Verified' : 'Correction required';
+      d.at = approve ? nowLabel() : d.at;
+    });
+  }
+  audit(approve ? 'Profile change approved' : 'Profile change rejected', `${ch.module} · ${ch.field} · ${ch.id}`, 'Ops reviewer (demo)');
+  notify('sell', approve ? 'Change approved' : 'Change needs correction', `${ch.module} · ${ch.field}`);
+  save();
+  paint();
+  toast(approve ? 'Approved. The seller record now uses the new value.' : 'Rejected. The seller will see the reason and can resubmit.', approve ? 'checkCircle' : 'alert');
+}
+
 function sellPage() {
   switch (route.view) {
     case 'orders': return sellOrders();
@@ -1734,6 +2572,11 @@ function sellPage() {
     case 'team': return sellTeam();
     case 'support': return sellSupport();
     case 'register': return sellerOnboarding();
+    case 'profile': return sellProfile();
+    case 'profile-account': return sellProfileAccount();
+    case 'profile-locations': return sellProfileLocations();
+    case 'profile-bank': return sellProfileBank();
+    case 'profile-business': return sellProfileBusiness();
     default: return sellOverview();
   }
 }
@@ -2434,6 +3277,7 @@ function opsPage() {
   switch (route.view) {
     case 'verifications': return opsVerifications();
     case 'enquiries': return opsEnquiries();
+    case 'changes': return opsProfileChanges();
     case 'dispatch': return opsDispatch();
     case 'partners': return opsPartners();
     case 'areas': return opsAreas();
@@ -2835,6 +3679,96 @@ function handleAction(act, ds, el, event) {
     }
     case 'ob-decide': decideApplication(ds.kind, ds.decision); break;
     case 'ob-restart': restartApplication(ds.kind); break;
+    case 'profile-edit': profileEdit(ds.module || 'account'); break;
+    case 'profile-cancel': profileCancel(); break;
+    case 'profile-photo': {
+      const a = pfAccount();
+      a.photo = true;
+      audit('Profile photo updated', 'Seller account · sample image', 'Seller owner');
+      save(); paint(); toast('Sample profile photo attached (demo only).', 'user');
+      break;
+    }
+    case 'profile-2fa': {
+      const a = pfAccount();
+      a.twoStep = !a.twoStep;
+      audit('Two-step verification ' + (a.twoStep ? 'enabled' : 'disabled'), 'Seller account', 'Seller owner');
+      save(); paint();
+      toast(a.twoStep ? 'Two-step verification enabled for this demo.' : 'Two-step verification turned off.', a.twoStep ? 'shield' : 'alert');
+      break;
+    }
+    case 'profile-signout': {
+      const a = pfAccount();
+      a.sessions = a.sessions.filter((x) => x.id !== ds.id);
+      audit('Session ended', 'Seller account · other device signed out', 'Seller owner');
+      save(); paint(); toast('That device is signed out.', 'logout');
+      break;
+    }
+    case 'profile-signout-all': {
+      const a = pfAccount();
+      const removed = a.sessions.filter((x) => !x.current).length;
+      a.sessions = a.sessions.filter((x) => x.current);
+      audit('All other sessions ended', `${removed} device(s) signed out`, 'Seller owner');
+      save(); paint(); toast(`${removed} other session${removed === 1 ? '' : 's'} signed out.`, 'logout');
+      break;
+    }
+    case 'loc-default': {
+      const loc = pfLocations().find((l) => l.id === ds.id);
+      if (!loc) break;
+      pfLocations().forEach((l) => { l.defaultPickup = l.id === ds.id; });
+      audit('Default pickup changed', loc.label, 'Seller owner');
+      save(); paint(); toast(`${loc.label} is now the default pickup point.`, 'pin');
+      break;
+    }
+    case 'loc-remove': {
+      const loc = pfLocations().find((l) => l.id === ds.id);
+      if (!loc) break;
+      if (loc.type === 'Shop location') { toast('The shop location cannot be removed.', 'alert'); break; }
+      state.profile.locations = pfLocations().filter((l) => l.id !== ds.id);
+      audit('Location removed', `${loc.label} · ${loc.pin}`, 'Seller owner');
+      save(); paint(); toast('Location removed from the seller record.', 'x');
+      break;
+    }
+    case 'bank-primary': {
+      const bank = pfBanks().find((b) => b.id === ds.id);
+      if (!bank) break;
+      if (bank.status !== 'Verified') { toast('Only a verified account can receive settlements.', 'alert'); break; }
+      pfBanks().forEach((b) => { b.primary = b.id === ds.id; });
+      audit('Primary payout account changed', `${bank.bankName} ${pfMask(bank.full)}`, 'Seller owner');
+      notify('sell', 'Payout account changed', `${bank.bankName} · ${pfMask(bank.full)} is now primary.`);
+      save(); paint(); toast('Primary settlement account updated.', 'wallet');
+      break;
+    }
+    case 'bank-remove': {
+      const bank = pfBanks().find((b) => b.id === ds.id);
+      if (!bank) break;
+      if (bank.primary) { toast('Set another account as primary first.', 'alert'); break; }
+      state.profile.bank = pfBanks().filter((b) => b.id !== ds.id);
+      pfAddChange({ module: 'Bank details', field: 'Account removed', from: pfMask(bank.full), to: '—', status: 'Approved' });
+      audit('Bank account removed', `${bank.bankName} ${pfMask(bank.full)}`, 'Seller owner');
+      save(); paint(); toast('Bank account removed.', 'x');
+      break;
+    }
+    case 'doc-upload': {
+      const doc = pfBusiness().documents.find((d) => d.id === ds.id);
+      if (!doc) break;
+      const replacing = doc.status !== 'Not uploaded';
+      doc.status = 'Pending review'; doc.at = `${nowLabel()} · ${replacing ? 'replaced' : 'uploaded'}`;
+      pfAddChange({ module: 'Business details', field: doc.name, from: replacing ? 'Previous file' : 'Not uploaded', to: 'Uploaded', status: 'Pending review' });
+      notify('ops', 'Document uploaded', `${doc.name} · needs review`);
+      audit('Document uploaded', `${doc.name} · pending review`, 'Seller owner');
+      save(); paint(); toast(`${doc.name} uploaded for review (demo only).`, 'clipboard');
+      break;
+    }
+    case 'doc-media': {
+      const b = pfBusiness();
+      if (ds.media === 'photos') { b.photos = true; toast('3 sample shop photos attached.', 'store'); }
+      else { b.logo = true; toast('Sample logo attached.', 'store'); }
+      audit('Shop media updated', `${ds.media} · sample`, 'Seller owner');
+      save(); paint();
+      break;
+    }
+    case 'change-approve': decideProfileChange(ds.id, true); break;
+    case 'change-reject': decideProfileChange(ds.id, false); break;
     case 'enquiry-status': {
       const e = state.enquiries.find((x) => x.id === ds.id);
       if (!e) break;
@@ -4013,6 +4947,36 @@ function handleSubmit(form, event) {
       notify('ops', `Safety report · ${incident.id}`, `${me().name} · ${incident.type}`);
       audit('Safety report', `${incident.id} · ${incident.type}`, 'Runner demo');
       save(); paint(); toast('Sample report saved. Ops can see it now.', 'shield');
+      break;
+    }
+    case 'profileAccountForm': {
+      const error = profileSaveAccount(fd);
+      if (error) { profileFail(error, fd); break; }
+      ui.profileError = ''; ui.profileEdit = ''; ui.profileDraft = null; save(); paint();
+      break;
+    }
+    case 'profilePasswordForm': {
+      const error = profileSavePassword(fd);
+      if (error) { profileFail(error, fd); break; }
+      ui.profileError = ''; ui.profileEdit = ''; ui.profileDraft = null; save(); paint();
+      break;
+    }
+    case 'profileLocationForm': {
+      const error = profileSaveLocation(fd);
+      if (error) { profileFail(error, fd); break; }
+      ui.profileError = ''; ui.profileEdit = ''; ui.profileDraft = null; save(); paint();
+      break;
+    }
+    case 'profileBankForm': {
+      const error = profileSaveBank(fd);
+      if (error) { profileFail(error, fd); break; }
+      ui.profileError = ''; ui.profileEdit = ''; ui.profileDraft = null; save(); paint();
+      break;
+    }
+    case 'profileBusinessForm': {
+      const error = profileSaveBusiness(fd);
+      if (error) { profileFail(error, fd); break; }
+      ui.profileError = ''; ui.profileEdit = ''; ui.profileDraft = null; save(); paint();
       break;
     }
     case 'portalSignInForm': {

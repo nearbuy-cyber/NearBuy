@@ -147,7 +147,31 @@ Keep all three bands honest by reviewing them once a month against what actually
 3. Update *Payments & earnings* if commission or settlement timing changes, since the seller band points there for money questions.
 4. Re-walk the customer journeys the customer band claims — search, compare, checkout, pickup, tracking, help — and remove any claim the demo cannot demonstrate.
 5. **Delivery partner review (monthly):** compare nearby platforms' partner features, earnings models, verification requirements and safety systems; check that distance bands, payout timing and deductions still match what the app shows before a request is accepted, and that the safety centre is reachable from every delivery state.
-6. Check all three honesty lines still match reality before publishing any new claim.
+6. **Seller profile review (monthly):** re-check the four Manage profile modules against what NearBuy actually uses each field for, confirm the completion checks still mirror real requirements (not aspiration), and verify that bank, PAN, GSTIN and documents are still masked outside Seller Hub and Operations.
+7. Check all three honesty lines still match reality before publishing any new claim.
+
+## Seller Hub · Manage profile
+
+`#/sell/profile` is the seller's central record: one place to enter account, location, payout and business information that every other NearBuy surface reads. The header block (*Your shop profile · Seller account and business settings · Active*) sits above a **Profile completion** meter that starts at **75%** — six of eight checks — so a new seller can see exactly what is still missing.
+
+| Module | What it holds | Who may edit |
+| --- | --- | --- |
+| Account details | Full name, mobile, email, profile photo, seller ID, account created/status; login mobile, login email, password change, two-step verification, active sessions, last login | Owner only — login credentials are never shown to shop staff |
+| Manage locations | Shop, pickup, return and warehouse addresses with building, street, landmark, city, state, PIN, GPS, contact person and number; opening hours, pickup availability, handover instructions and default pickup **per branch** | Owner edits, manager views |
+| Bank details | Holder name, bank, account number + confirm, IFSC, savings/current, branch; primary settlement account, payout default, verification status, settlement history with UTR, failed/pending settlements | Owner only, plus operations verification |
+| Business details | Shop and legal name, type, category, description, year established, outlets, logo and shop photos; PAN, GSTIN, registration number, licences, registered address, ownership; document uploads with review status | Owner edits and verifies, manager views |
+
+Rules the screens enforce rather than describe:
+
+- **Account numbers are masked** as `•••• •••• 4321` everywhere — including the change log and the operations queue. PAN and GSTIN are likewise masked, and the full values never reach the DOM.
+- **No payout detail changes without verification.** A new or edited account lands in **Pending review**; it cannot become primary until operations approve it, and settlements stay on the previously verified account until then.
+- **Every sensitive save is queued, logged and notified.** Bank, legal-name, PAN/GSTIN and document replacements create a change record (`CHG-…`), write an audit entry and notify both operations and the seller.
+- **Passwords are never displayed or stored.** The password form checks length, letter + number, and confirmation; only a “changed” timestamp is kept.
+- **Only relevant documents are requested** for the declared business type; a proprietorship is not asked for a partnership deed.
+- **Shop location and delivery coverage are separate.** Each branch has its own serviceable PIN codes, delivery radius and pickup/delivery availability, so a shop address never silently becomes a delivery promise.
+- **Rejections carry a reason.** Operations can approve or reject with *Correction required*, which returns the item to the seller with a visible status.
+
+Operations reviews these changes at **Profile changes** (`#/ops/changes` — Ops console → Profile changes), where the queue shows pending edits, uploaded documents awaiting review and unverified payout accounts, with approve/reject actions that update the seller record and notify the shop. Sensitive documents and bank numbers are scoped to Seller Hub and Operations: the customer portal and NearBuy Runner read the shop's name, address, pickup contact and handover notes, and nothing else.
 
 ## Keyboard & shortcuts
 
