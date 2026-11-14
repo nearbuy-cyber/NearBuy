@@ -1,4 +1,5 @@
 // Routely Partner — the delivery partner app. Every number and status on these screens is read from the server.
+import { withSession } from '/delivery/session.js';
 import { h, mount, api, act, money, dt, day, clock, ago, mins, pct, val, badge, statusBadge, demoTag, spinner, empty, note, stat, card, kv, btn, brand, table, timeline, tabs, toast, modal, form, formModal, confirmModal, currentRoute, go, onRoute, live, plot, plotLegend, mapsLink, readFileInput, svg } from '/delivery/kit.js';
 
 const root = document.getElementById('app');
@@ -113,7 +114,7 @@ function uploadRow(kind, doc, done) {
   const editable = S.me.partner.editable || !doc || doc.status === 'rejected';
   return h('div', { class: 'card flat stack tight' }, h('div', { class: 'row between' }, h('strong', null, S.config.document_kinds[kind]), doc ? statusBadge(doc.status, doc.status === 'pending' ? 'Uploaded — awaiting check' : null) : badge('Not uploaded', 'warn')),
     doc ? h('div', { class: 'small muted' }, `${doc.file_name || 'File'} · ${Math.max(1, Math.round(doc.size / 1024))} KB · ${dt(doc.uploaded_at)}`, doc.note ? ` · ${doc.note}` : '') : null,
-    doc ? h('a', { class: 'small', href: `/api/partners/documents/${doc.id}/file`, target: '_blank', rel: 'noopener' }, 'View my upload') : null,
+    doc ? h('a', { class: 'small', href: withSession(`/api/partners/documents/${doc.id}/file`), target: '_blank', rel: 'noopener' }, 'View my upload') : null,
     editable && (!doc || doc.status !== 'verified') ? h('div', { class: 'row' }, h('div', { class: 'grow' }, input), btn(doc ? 'Replace' : 'Upload', async (b) => {
       const r = await act(b, async () => { const file = await readFileInput(input); return api('/api/partners/documents', { method: 'POST', query: { kind, name: file.name }, raw: file }); }, 'Uploaded.');
       if (r) { await loadMe(); done(); }

@@ -1,4 +1,5 @@
 // Shared interface kit for the delivery network apps. No framework, no build step, no inline scripts.
+import '/delivery/session.js';
 export function h(tag, attrs, ...kids) {
   const el = document.createElementNS(tag === 'svg' || h.svg ? 'http://www.w3.org/2000/svg' : 'http://www.w3.org/1999/xhtml', tag);
   for (const [k, v] of Object.entries(attrs || {})) {
