@@ -1089,21 +1089,21 @@ p, .prod__name, .list-row__main small, .shop-card__p { text-wrap: pretty; }
 .portal-gate__links { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
 
 /* ---------- "Why Sell on NearBuy?" band ---------- */
-.why-sell {
+.why-sell, .why-block {
   margin: 0 0 18px;
   padding: 22px;
   border-radius: 18px;
   border: 1px solid #d8e9e0;
   background: linear-gradient(180deg, #f4fbf7 0%, #fbfdfb 100%);
 }
-.why-sell__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 22px; flex-wrap: wrap; margin-bottom: 16px; }
-.why-sell__copy { max-width: 62ch; }
-.why-sell__copy h2 { font-size: clamp(18px, 2.1vw, 23px); letter-spacing: -.03em; line-height: 1.28; margin: 6px 0 8px; color: var(--ink); }
-.why-sell__copy p { font-size: 13px; line-height: 1.62; color: var(--muted); margin: 0; }
+.why-sell__head, .why-block__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 22px; flex-wrap: wrap; margin-bottom: 16px; }
+.why-sell__copy, .why-block__copy { max-width: 62ch; }
+.why-sell__copy h2, .why-block__copy h2 { font-size: clamp(18px, 2.1vw, 23px); letter-spacing: -.03em; line-height: 1.28; margin: 6px 0 8px; color: var(--ink); }
+.why-sell__copy p, .why-block__copy p { font-size: 13px; line-height: 1.62; color: var(--muted); margin: 0; }
 .kicker--sell { color: var(--green); }
 .kicker--sell i { background: var(--green); }
-.why-sell__actions { display: grid; gap: 6px; justify-items: start; }
-.why-sell__actions .tiny { max-width: 22ch; line-height: 1.5; }
+.why-sell__actions, .why-block__actions { display: grid; gap: 6px; justify-items: start; }
+.why-sell__actions .tiny, .why-block__actions .tiny { max-width: 22ch; line-height: 1.5; }
 
 .why-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .why-card {
@@ -1128,11 +1128,11 @@ p, .prod__name, .list-row__main small, .shop-card__p { text-wrap: pretty; }
 .why-card__link .ic { width: 11px; height: 11px; }
 .why-card__link:hover { text-decoration: underline; }
 
-.why-sell__foot { display: flex; gap: 8px; align-items: flex-start; margin-top: 14px; padding-top: 12px; border-top: 1px solid #e2efe8; }
-.why-sell__foot > .ic { width: 13px; height: 13px; color: var(--green); flex: 0 0 auto; margin-top: 2px; }
-.why-sell__foot p { margin: 0; font-size: 10.8px; line-height: 1.6; color: var(--muted); }
-.why-sell__foot b { color: var(--ink-2); }
-.why-sell__foot .link { font-size: 10.8px; color: var(--accent-ink); }
+.why-sell__foot, .why-block__foot { display: flex; gap: 8px; align-items: flex-start; margin-top: 14px; padding-top: 12px; border-top: 1px solid #e2efe8; }
+.why-sell__foot > .ic, .why-block__foot > .ic { width: 13px; height: 13px; color: var(--green); flex: 0 0 auto; margin-top: 2px; }
+.why-sell__foot p, .why-block__foot p { margin: 0; font-size: 10.8px; line-height: 1.6; color: var(--muted); }
+.why-sell__foot b, .why-block__foot b { color: var(--ink-2); }
+.why-sell__foot .link, .why-block__foot .link { font-size: 10.8px; color: var(--accent-ink); }
 .why-legend { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; margin-right: 8px; }
 .why-dot { width: 6px; height: 6px; border-radius: 50%; background: #c2c9d4; display: inline-block; }
 .why-dot--green { background: var(--green); }
@@ -1141,12 +1141,72 @@ p, .prod__name, .list-row__main small, .shop-card__p { text-wrap: pretty; }
   .why-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
-  .why-sell { padding: 16px; border-radius: 14px; }
+  .why-sell, .why-block { padding: 16px; border-radius: 14px; }
   .why-grid { grid-template-columns: minmax(0, 1fr); }
-  .why-sell__actions { justify-items: stretch; }
-  .why-sell__actions .btn { width: 100%; justify-content: center; }
+  .why-sell__actions, .why-block__actions { justify-items: stretch; }
+  .why-sell__actions .btn, .why-block__actions .btn { width: 100%; justify-content: center; }
 }
 @media (prefers-reduced-motion: reduce) {
   .why-card { transition: none; }
   .why-card:hover { transform: none; box-shadow: none; }
+}
+
+/* ---------- "Why Use NearBuy?" (customer) ---------- */
+.why-use {
+  border-color: #f3ddc7;
+  background: linear-gradient(180deg, #fff8f0 0%, #fffdfa 100%);
+}
+.kicker--shop { color: var(--accent-ink); }
+.kicker--shop i { background: var(--accent); }
+.why-use .why-card { border-color: #f0e6d8; }
+.why-use .why-card:hover { border-color: #f2cba6; box-shadow: 0 12px 26px -20px rgba(12, 26, 51, .45); }
+.why-use .why-card__icon { background: var(--accent-soft); color: var(--accent-ink); border-color: #ffe2c8; }
+.why-use__message {
+  margin: 8px 0 0;
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  color: var(--accent-ink);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.why-use .why-block__copy h2 { margin-top: 6px; }
+.why-use__needs {
+  display: grid; gap: 9px; margin-top: 14px; padding: 13px;
+  border-radius: 12px; background: #fff; border: 1px solid #f0e6d8;
+}
+.why-use__chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.why-use__chips .chip { display: inline-flex; align-items: center; gap: 6px; }
+.why-use__chips .chip .ic { width: 13px; height: 13px; }
+.why-use__cta {
+  display: flex; justify-content: space-between; align-items: center; gap: 18px; flex-wrap: wrap;
+  margin-top: 14px; padding: 15px 16px; border-radius: 13px;
+  background: linear-gradient(120deg, #12294c, #0c1d3a); color: #eef3fb;
+}
+.why-use__cta b { display: block; font-family: var(--display); font-size: 15px; letter-spacing: -.02em; color: #fff; }
+.why-use__cta small { display: block; margin-top: 4px; font-size: 11.8px; line-height: 1.55; color: #a9bcd8; max-width: 52ch; }
+.why-use__cta-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.why-use__tagline { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #ffb877; }
+.why-use .why-block__foot { border-top-color: #f2e3d2; }
+
+/* ---------- compact how-it-works strip ---------- */
+.how-strip { padding: 18px; border-radius: 16px; background: #fff; border: 1px solid var(--line); }
+.how-strip .kicker { color: var(--muted); }
+.how-strip .kicker i { background: var(--accent); }
+.how-step { position: relative; padding: 12px 12px 12px 0; display: grid; gap: 5px; }
+.how-step__num {
+  position: absolute; top: 10px; right: 10px;
+  font-family: var(--display); font-size: 11px; font-weight: 800; color: #cfc6b5;
+}
+.how-step .kpi__icon { width: 32px; height: 32px; margin-bottom: 2px; }
+.how-step b { font-size: 12.8px; color: var(--ink); }
+.how-step small { font-size: 11.4px; line-height: 1.5; color: var(--muted); }
+@media (max-width: 1000px) {
+  .why-use__cta { flex-direction: column; align-items: flex-start; }
+}
+@media (max-width: 640px) {
+  .why-use__cta-actions { width: 100%; }
+  .why-use__cta-actions .btn { width: 100%; justify-content: center; }
+  .how-strip { padding: 14px; }
 }

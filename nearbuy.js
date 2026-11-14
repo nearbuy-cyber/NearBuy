@@ -779,7 +779,7 @@ function shopHome() {
         <p>Shop the corner shops you love, track your delivery in real time, and see the same order move through the seller, runner and ops workspaces — all in one place.</p>
         <div class="hero__cta">
           <button class="btn btn--primary btn--lg" data-act="nav" data-surface="shop" data-view="explore">Browse nearby ${icon('arrowRight')}</button>
-          <button class="btn btn--ghost btn--lg" data-act="switch" data-surface="sell">${icon('store')} Open Seller Hub</button>
+          <button class="btn btn--ghost btn--lg" data-act="nav" data-surface="shop" data-view="orders">${icon('package')} Track your orders</button>
         </div>
         <div class="hero__chips">
           <span class="hero__chip">${icon('checkCircle')} Real neighbourhood shops</span>
@@ -803,12 +803,12 @@ function shopHome() {
 
     <section class="grid grid--4 mb-18">
       ${[
-        ['Live orders', pulse.orders, 'package', 'Across the neighbourhood', 'shop', 'orders'],
-        ['Delivery tasks', pulse.tasks, 'truck', 'Runner network today', 'deliver', 'requests'],
-        ['Shop queue', pendingSellerOrders().length, 'store', 'Waiting on the shop', 'sell', 'orders'],
-        ['Network', state.areas.length, 'shield', 'Service areas live', 'ops', 'overview']
-      ].map(([label, value, ic, foot, surface, view]) => `
-        <button class="card kpi" data-act="switch" data-surface="${surface}" data-view="${view}" style="text-align:left">
+        ['Shops nearby', SHOPS.length, 'store', `in ${esc(areaLabel())}`, 'shops'],
+        ['Nearby finds', state.catalogue.length, 'package', 'across groceries, stationery & more', 'explore'],
+        ['Open right now', SHOPS.filter((x) => x.open).length, 'clock', 'accepting orders', 'shops'],
+        ['Runners online', pulse.online, 'truck', 'for eligible deliveries', 'help']
+      ].map(([label, value, ic, foot, view]) => `
+        <button class="card kpi" data-act="nav" data-surface="shop" data-view="${view}" style="text-align:left">
           <span class="kpi__top"><span class="kpi__label">${label}</span><span class="kpi__icon">${icon(ic)}</span></span>
           <span class="kpi__value">${value}</span>
           <span class="kpi__foot"><span>${foot}</span>${icon('arrowUpRight', 'sm')}</span>
@@ -830,26 +830,9 @@ function shopHome() {
     ${subHead('The people behind the good stuff', 'Real shops, run by people who know your street.', `<button class="link" data-act="nav" data-surface="shop" data-view="shops">All shops ${icon('arrowRight')}</button>`)}
     <div class="grid grid--3 mb-18">${featured.map(shopCard).join('')}</div>
 
-    <section class="card card--pad mb-18" style="background:linear-gradient(150deg,#fffdf9,#f8f1e5)">
-      <div class="between mb-14 wrap">
-        <div><span class="kicker"><i></i>ONE PORTAL, EVERY SIDE OF THE NEIGHBOURHOOD</span><h2 style="font-size:20px">The same order, seen from every angle.</h2><p class="muted small" style="margin-top:4px">Switch workspaces to follow a single order from cart to doorstep.</p></div>
-        <button class="btn btn--ghost btn--sm" data-act="launcher">${icon('layers')} Open workspace launcher</button>
-      </div>
-      <div class="grid grid--4">
-        ${[
-          ['shop', 'Shop', 'Browse and order from local stores.', 'bag'],
-          ['sell', 'Sell', 'Accept orders, manage stock, get paid.', 'store'],
-          ['deliver', 'Deliver', 'Pick up and deliver nearby orders.', 'truck'],
-          ['ops', 'Ops', 'Watch the network and keep it safe.', 'shield']
-        ].map(([key, label, text, ic]) => `
-          <button class="card card--pad" data-act="switch" data-surface="${key}" style="text-align:left">
-            <span class="kpi__icon" style="margin-bottom:10px">${icon(ic)}</span>
-            <b style="font-family:var(--display);font-size:15px;color:var(--ink)">${label}</b>
-            <span class="tiny muted" style="display:block;margin-top:4px">${text}</span>
-            <span class="link" style="margin-top:10px">Open ${label} ${icon('arrowUpRight')}</span>
-          </button>`).join('')}
-      </div>
-    </section>
+    ${whyUseSection()}
+
+    ${howItWorksStrip()}
 
     <section class="banner">
       ${icon('sparkles', 'lg')}
@@ -858,6 +841,95 @@ function shopHome() {
     </section>
   </div>`;
 }
+/* ---- "Why Use NearBuy?" — customer benefits band ---- */
+const WHY_USE = [
+  { icon: 'pin', title: 'Discover nearby shops', copy: 'Find local stores and businesses around your location, filtered to the area you can actually be served in.', view: 'shops', link: 'See nearby shops' },
+  { icon: 'store', title: 'Shop from local stores', copy: 'Explore products from neighbourhood shopkeepers across categories, instead of searching shop by shop.', view: 'explore', link: 'Browse the shelves' },
+  { icon: 'search', title: 'Find what you need easily', copy: 'Search, browse and compare eligible nearby stores in one place — with prices side by side.', view: 'explore', link: 'Search everything' },
+  { icon: 'truck', title: 'Convenient delivery options', copy: 'Choose a Runner in eligible areas, seller delivery, or free collection from the shop itself.', view: 'cart', link: 'Choose at checkout' },
+  { icon: 'heart', title: 'Support local businesses', copy: 'Every order goes to a shop on your street, not a distant warehouse — the shopkeeper keeps the relationship.', view: 'shops', link: 'Meet the shopkeepers' },
+  { icon: 'grid', title: 'More local choices', copy: 'Compare different nearby stores and their prices before you commit to one basket.', view: 'explore', link: 'Compare nearby' },
+  { icon: 'package', title: 'Track your orders', copy: 'Follow each order and its delivery progress from your customer account, from accepted to delivered.', view: 'orders', link: 'Open your orders' },
+  { icon: 'help', title: 'Customer assistance', copy: 'Get help with orders, payments, deliveries and your NearBuy account from the help centre.', view: 'help', link: 'Visit the help centre' }
+];
+
+function whyUseSection() {
+  return `<section class="why-block why-use" aria-labelledby="whyUseTitle">
+    <div class="why-block__head">
+      <div class="why-block__copy">
+        <span class="kicker kicker--shop"><i></i>WHY USE NEARBUY?</span>
+        <p class="why-use__message">Your neighbourhood. Your favourite shops. Everything closer.</p>
+        <h2 id="whyUseTitle">Everything you need, closer to home.</h2>
+        <p>Discover nearby shops, explore local products and order from the stores in your neighbourhood — all through one convenient platform.</p>
+      </div>
+      <div class="why-block__actions">
+        <button class="btn btn--primary btn--sm" data-act="nav" data-surface="shop" data-view="explore">${icon('bag')} Explore nearby shops</button>
+        <span class="tiny muted">One basket, one checkout — from shops around you.</span>
+      </div>
+    </div>
+
+    <div class="why-grid">
+      ${WHY_USE.map((b) => `<article class="why-card">
+        <span class="why-card__icon">${icon(b.icon)}</span>
+        <div class="why-card__body">
+          <div class="why-card__title"><b>${b.title}</b></div>
+          <small>${b.copy}</small>
+          <button class="link why-card__link" data-act="nav" data-surface="shop" data-view="${b.view}">${b.link} ${icon('arrowRight')}</button>
+        </div>
+      </article>`).join('')}
+    </div>
+
+    <div class="why-use__needs">
+      <b class="small">NearBuy brings different neighbourhood shopping needs together</b>
+      <div class="why-use__chips">
+        <button class="chip" data-act="category" data-cat="grocery">${icon('bag', 'sm')} Grocery &amp; daily essentials</button>
+        <button class="chip" data-act="category" data-cat="stationery">${icon('box', 'sm')} Stationery &amp; books</button>
+        <button class="chip" data-act="nav" data-surface="shop" data-view="shops">${icon('store', 'sm')} General stores</button>
+        <span class="tiny muted">More local categories as the platform expands.</span>
+      </div>
+    </div>
+
+    <div class="why-use__cta">
+      <div>
+        <b>Your neighbourhood is closer than you think!</b>
+        <small>Discover nearby shops, find products and experience a more connected way to shop locally.</small>
+      </div>
+      <div class="why-use__cta-actions">
+        <span class="why-use__tagline">Shop local. Shop smart. Shop NearBuy.</span>
+        <button class="btn btn--primary btn--sm" data-act="nav" data-surface="shop" data-view="explore">Explore nearby shops ${icon('arrowRight')}</button>
+      </div>
+    </div>
+
+    <div class="why-block__foot">
+      ${icon('shield')}
+      <p>Delivery is offered <b>where an eligible Runner is available</b>; pickup is always free. Stock and prices are set by each shop and can change. This prototype stores everything in your browser — no real order, payment or delivery takes place.</p>
+    </div>
+  </section>`;
+}
+
+function howItWorksStrip() {
+  const steps = [
+    ['Discover', 'Find shops and products inside your serviceable area.', 'search'],
+    ['Order', 'One basket, one checkout — pickup or delivery.', 'bag'],
+    ['Prepare &amp; deliver', 'The shop packs it; a nearby Runner collects it.', 'truck'],
+    ['Receive', 'Confirm the handover with your delivery OTP.', 'checkCircle']
+  ];
+  return `<section class="how-strip mb-18" aria-labelledby="howTitle">
+    <div class="between wrap mb-14">
+      <div><span class="kicker"><i></i>HOW NEARBUY WORKS</span><h2 id="howTitle" style="font-size:17px;margin-top:6px">From your street to your door in four steps.</h2></div>
+      <a class="link" href="/help/">Help centre ${icon('arrowRight')}</a>
+    </div>
+    <div class="grid grid--4">
+      ${steps.map(([title, copy, ic], i) => `<div class="how-step">
+        <span class="how-step__num">${i + 1}</span>
+        <span class="kpi__icon">${icon(ic)}</span>
+        <b>${title}</b>
+        <small>${copy}</small>
+      </div>`).join('')}
+    </div>
+  </section>`;
+}
+
 function filteredCatalogue() {
   const q = (ui.query || '').trim().toLowerCase();
   let items = state.catalogue.filter((p) => {

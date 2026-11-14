@@ -89,7 +89,7 @@ NearBuy One rebuilds them as **one product**:
 
 | Workspace | Who | What you can do |
 | --- | --- | --- |
-| **Shop** | Neighbour | Discover, filter, save, cart, checkout, track orders, manage account, follow shops |
+| **Shop** | Neighbour | Discover, filter, save, cart, checkout, track orders, manage account, follow shops — plus the **Why Use NearBuy?** benefits band |
 | **Sell** | Green Basket Market | Accept orders, mark ready, request runners, edit catalogue & stock, promotions, payouts, insights, settings, team — plus the **Why Sell on NearBuy?** benefits band |
 | **Deliver** | Runner | Go online, accept/pass requests, shop arrival, pickup OTP, route, delivery OTP, earnings, preferences, safety reports |
 | **Fleet** | Neighbourhood fleet lead | Team availability, work allocation, auto-match, reports, safety commitments |
@@ -113,6 +113,20 @@ No workspace is a public portal. Any gated route withholds its module list, its 
 
 This is a browser-only demonstration of the model, not a security boundary: the checks run in the client, so production still needs server-side sessions, per-role permission checks on every sensitive action, and MFA for administrative roles.
 
+## Two benefits bands, one identity
+
+Both portals carry a benefits band in the same visual language — same card grid, same status/legend pattern, same typographic rhythm — but each speaks to its own side of the marketplace.
+
+| | Seller Hub (`#/sell/overview`) | Customer portal (`#/shop/home`) |
+| --- | --- | --- |
+| Heading | **Why Sell on NearBuy?** | **Why Use NearBuy?** |
+| Message | Grow your business with local customers | Your neighbourhood. Your favourite shops. Everything closer. |
+| Accent | Green | Marigold, over a warm cream band |
+| Proof points | Reach customers, digital shop, catalogue, orders, delivery, promotion, insights, support | Nearby shops, local products, easy search, delivery or pickup, support local, more choice, tracking, assistance |
+| Ends with | Start selling on NearBuy | Explore nearby shops · *Shop local. Shop smart. Shop NearBuy.* |
+
+The customer band sits after discovery (categories, products, shops) and before a compact four-step **How NearBuy works** strip, which replaced an earlier block that advertised workspace switching. Both bands link only to routes inside their own portal, and both state the limits plainly: delivery depends on an eligible Runner, stock and prices belong to the shop, and nothing here guarantees sales, orders or earnings.
+
 ## Selling on NearBuy — the benefits band
 
 The seller landing page (`#/sell/overview`) carries a **Why Sell on NearBuy?** section directly under the KPI hero: eight benefit cards, each with a real destination, a status label and a closing CTA that opens the seller registration flow.
@@ -126,12 +140,13 @@ The section is NearBuy's own; it borrows the *structure* of marketplace seller p
 
 ### Monthly feature review
 
-Keep the band honest by reviewing it once a month against what actually ships:
+Keep both bands honest by reviewing them once a month against what actually ships:
 
-1. Re-read the eight cards against the build; flip **Partly → In demo** only when the feature is genuinely clickable, and delete a card rather than overstate it.
-2. Compare the offer with nearby marketplaces (fees, payout timing, ad formats, support hours, catalogue limits) and record the differences — without importing their guarantees.
-3. Update *Payments & earnings* if commission or settlement timing changes, since the band points there for money questions.
-4. Check the honesty line still matches reality before publishing any new claim.
+1. Re-read the eight cards on each band against the build; flip **Partly → In demo** only when the feature is genuinely clickable, and delete a card rather than overstate it.
+2. Compare the offer with nearby marketplaces (fees, payout timing, ad formats, support hours, catalogue limits, delivery windows) and record the differences — without importing their guarantees.
+3. Update *Payments & earnings* if commission or settlement timing changes, since the seller band points there for money questions.
+4. Re-walk the customer journeys the customer band claims — search, compare, checkout, pickup, tracking, help — and remove any claim the demo cannot demonstrate.
+5. Check both honesty lines still match reality before publishing any new claim.
 
 ## Keyboard & shortcuts
 
