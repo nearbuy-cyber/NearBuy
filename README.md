@@ -132,7 +132,7 @@ Reset everything from the rail footer’s *Reset demo data*, or from the account
 - **One accent per workspace** — marigold for Shop, green for Sell, blue for Deliver, violet for Fleet, teal for Ops. Everything else stays identical, so switching feels like moving rooms in the same building.
 - **One rhythm** — 18 px gutters, 18 px card radii, 8-pt spacing steps, a single KPI card, table, list row, empty state, status pill, modal and toast.
 - **Built to move** — hover lift on cards, staggered sparklines and bars, page-entry transitions, reduced-motion support.
-- **Responsive by construction** — 5-up workspace pills collapse to icons, then to a switcher; the rail becomes a drawer; tables scroll; the mobile bottom bar mirrors each workspace's most-used views.
+- **Responsive by construction** — the rail becomes a drawer on small screens, tables scroll, and every page keeps one navigation model. The Customer, Seller and Delivery Partner portals no longer carry a mobile bottom bar; Fleet and Operations still do.
 
 ## Files
 

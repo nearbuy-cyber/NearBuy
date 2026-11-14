@@ -734,7 +734,8 @@ kbd {
   .scrim.show { display: block; position: fixed; inset: 0; background: rgba(9, 18, 34, .45); backdrop-filter: blur(2px); z-index: 85; }
   .topbar__menu { display: grid; }
   .topbar { padding: 0 18px; gap: 10px; }
-  .content { padding: 20px 18px 88px; }
+  .content { padding: 20px 18px 24px; }
+  body.has-mobilebar .content { padding-bottom: 88px; }
   .avatar-btn .who { display: none; }
   .hero { grid-template-columns: minmax(0, 1fr); padding: 24px; }
   .hero__side { order: -1; }
@@ -744,7 +745,6 @@ kbd {
     background: rgba(255, 253, 249, .94); backdrop-filter: blur(14px);
     border-top: 1px solid var(--line); padding: 7px 6px calc(7px + env(safe-area-inset-bottom));
   }
-  body[data-surface="shop"] .content { padding-bottom: 84px; }
   .mobilebar button { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px; border-radius: 9px; font-size: 9.5px; font-weight: 600; color: var(--muted); }
   .mobilebar button.active { color: var(--accent-ink); }
   .mobilebar button.active .ic { color: var(--accent); }

@@ -400,7 +400,7 @@ const SURFACES = {
       { view: 'account', label: 'Your account', icon: 'user' },
       { view: 'help', label: 'Help centre', icon: 'help' }
     ],
-    mobile: [['home', 'Home', 'home'], ['explore', 'Browse', 'grid'], ['cart', 'Cart', 'bag'], ['orders', 'Orders', 'package'], ['account', 'Account', 'user']]
+    mobile: []
   },
   sell: {
     label: 'Sell', icon: 'store', blurb: 'Run your shop: orders, stock, payouts and growth.', persona: 'Green Basket Market',
@@ -421,7 +421,7 @@ const SURFACES = {
       { view: 'team', label: 'Team & access', icon: 'users' },
       { view: 'support', label: 'Support & academy', icon: 'help' }
     ],
-    mobile: [['overview', 'Overview', 'home'], ['orders', 'Orders', 'clipboard'], ['catalogue', 'Catalogue', 'package'], ['delivery', 'Deliveries', 'truck'], ['payments', 'Payments', 'rupee']]
+    mobile: []
   },
   deliver: {
     label: 'Deliver', icon: 'truck', blurb: 'Take nearby deliveries on your own terms.', persona: 'Runner',
@@ -437,7 +437,7 @@ const SURFACES = {
       { view: 'safety', label: 'Safety centre', icon: 'shield' },
       { view: 'support', label: 'Help & support', icon: 'help' }
     ],
-    mobile: [['overview', 'Home', 'home'], ['requests', 'Requests', 'pin'], ['active', 'Active', 'zap'], ['earnings', 'Earnings', 'rupee'], ['profile', 'Profile', 'user']]
+    mobile: []
   },
   fleet: {
     label: 'Fleet', icon: 'users', blurb: 'Coordinate a neighbourhood delivery team.', persona: 'Hauz Khas Fleet',
@@ -598,6 +598,7 @@ function topbarHtml() {
 }
 function mobilebarHtml() {
   const items = currentMeta().mobile || [];
+  if (!items.length) return '';
   return `<nav class="mobilebar" aria-label="Quick navigation">${items.map(([view, label, ic]) => `
     <button data-act="nav" data-surface="${route.surface}" data-view="${view}" class="${route.view === view ? 'active' : ''}" ${route.view === view ? 'aria-current="page"' : ''}>
       ${icon(ic)}<span>${label}</span>
@@ -3623,8 +3624,10 @@ function paint() {
   document.body.dataset.surface = route.surface;
   const opsLocked = (route.surface === 'ops' && !adminSession()) || (!portalOpen(route.surface) && !portalPublic(route.surface, route.view));
   document.body.classList.toggle('ops-locked', opsLocked);
+  const barHtml = opsLocked ? '' : mobilebarHtml();
   $('#app').innerHTML = `${railHtml()}<div class="scrim ${ui.drawer ? 'show' : ''}" id="scrim" data-act="drawer"></div>
-    <div class="main">${topbarHtml()}<main class="content"><div id="page">${pageHtml()}</div></main></div>${opsLocked ? '' : mobilebarHtml()}`;
+    <div class="main">${topbarHtml()}<main class="content"><div id="page">${pageHtml()}</div></main></div>${barHtml}`;
+  document.body.classList.toggle('has-mobilebar', barHtml.length > 0);
   renderOverlay();
   syncDrawer();
   document.title = `${viewTitle()} · ${currentMeta().label} — NearBuy One`;
