@@ -104,6 +104,7 @@ function pageForgot() {
 }
 async function enter() {
   await loadMe();
+  if (!S.me) throw new Error('Your details are correct, but this browser did not keep you signed in. Open this page in its own browser tab, or allow cookies for this site, and try again.');
   startLive();
   go('/');
 }
