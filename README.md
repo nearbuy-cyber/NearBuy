@@ -8,7 +8,91 @@ A public, mobile-first marketing site for a neighbourhood commerce platform — 
 npm start
 ```
 
-Then open **http://localhost:4173** — no build step, no dependencies, no backend. To run the dependency-free regression tests (Node 18 or newer), use `npm test`.
+Then open **http://localhost:4173** for the public site and **http://localhost:4173/seller/** for the Seller Hub. `npm start` runs the Node server in `server/` (Node 22.5 or newer, no npm dependencies, no build step); it serves the static site and the Seller Hub API from one port. `npm run start:static` still serves the static pages alone, but the Seller Hub cannot sign anyone in without the API. Run the regression tests with `npm test`.
+
+## Seller Hub (`/seller/`)
+
+A working seller workspace backed by a real server: accounts, sessions, a SQLite database, server-side validation and role checks. It replaces the earlier static `/seller/` landing page.
+
+### Demo sign-ins
+
+The server creates one sample store, **Green Basket Market**, the first time it starts (skipped when `NODE_ENV=production` unless `SEED_DEMO=1`). Every sample record is labelled **DEMO DATA** in the interface.
+
+| Role | Email | Password | Can do |
+| --- | --- | --- | --- |
+| Store owner | `owner@nearbuy.demo` | `Seller123!` | Everything, including payments, team, ads and settings |
+| Catalogue manager | `catalogue@nearbuy.demo` | `Team123!` | Products, promotions, analytics (read) |
+| Order manager | `orders@nearbuy.demo` | `Team123!` | Orders, returns, shipping |
+| Inventory manager | `stock@nearbuy.demo` | `Team123!` | Stock and warehouses; orders read-only |
+| Finance viewer | `finance@nearbuy.demo` | `Team123!` | Payments, orders, returns and analytics, read-only |
+
+The sign-in page also offers a *Fill in the demo sign-in* shortcut. To start again from a clean sample store, stop the server, delete the `data/` folder and start it again.
+
+**If a demo sign-in returns you to the form:** the browser is not keeping the session cookie. The usual cause is viewing the Seller Hub inside another site's frame (hosted previews do this). Outside production the server therefore issues the cookie as `SameSite=None; Secure; Partitioned` over HTTPS, which works both framed and in its own tab; the form also explains the problem and links to a standalone tab if the cookie is still refused. The other cause is running a static file server (`npm run start:static`) instead of `npm start` — the pages load but there is no API to sign in to.
+
+### What is implemented
+
+- **Accounts:** registration, email verification, sign-in, password reset, session list and remote sign-out, team invitations, five roles enforced on the server for every request.
+- **Onboarding:** business, store, bank, pickup-location and first-product steps, then marketplace review.
+- **Catalogue:** product create/edit with category attributes, variants, image upload, draft and submit, automated quality check, bulk CSV upload, listing statuses.
+- **Inventory:** per-SKU stock with reservations, low-stock thresholds, bulk update, movement history, warehouses.
+- **Orders and returns:** the full order lifecycle with enforced step order, stock reserved on order and deducted on dispatch, invoice and label PDFs, return review, restock and refund.
+- **Payments:** a ledger posted on delivery, fees and GST calculated per order, settlement statements with PDF and CSV exports.
+- **Growth:** promotions with server-calculated price previews, campaign records, analytics reports and CSV exports calculated from the store's own records.
+- **Support and learning:** tickets with threaded replies, FAQs, a text learning centre.
+
+### What runs in demo mode or still needs an integration
+
+These are stated in the interface as well; nothing here is presented as live.
+
+| Area | Current behaviour | Needed for production |
+| --- | --- | --- |
+| Email | Messages are written to an outbox table. With `DEV_MAIL_PREVIEW=1` the link is shown on screen | An SMTP account (`SMTP_HOST` and related variables) and `npm install nodemailer` |
+| Seller and listing review | Auto-approved when `DEMO_AUTO_REVIEW` is on (the default outside production) | A staff review process using the operations API below |
+| Carriers | Shipment records, labels and tracking events are created locally; no courier is booked | A carrier or aggregator API |
+| Payouts | Settlements are calculated and marked *awaiting payout*; no money moves | A payout provider, then `POST /api/ops/settlements/:code/paid` |
+| Advertising | Campaigns are stored; real campaigns record zero delivery | An ad-serving system |
+| KYC | PAN, GSTIN and IFSC are format-checked only | A verification provider |
+| Customer orders | Created through *Simulate order* or the sample data | The customer checkout writing to the same database |
+| Sample images | 10 of the 28 sample products have photographs; the other 18 use labelled placeholder cards | Real product photography |
+
+### Configuration
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `PORT`, `HOST` | Listen address | `4173`, `0.0.0.0` |
+| `NODE_ENV` | `production` turns off demo seeding, auto-review and on-screen mail links, and requires `PUBLIC_BASE_URL` | unset |
+| `PUBLIC_BASE_URL` | Origin used in emailed links and the same-origin check | derived from the request |
+| `NEARBUY_DATA_DIR`, `NEARBUY_DB_FILE` | Where the database, uploads and key file live | `./data` |
+| `NEARBUY_DATA_KEY` | Key that encrypts bank account numbers at rest. Without it a key file is generated in the data folder | generated |
+| `SESSION_SAMESITE` | `lax` or `none` for the session cookie | `none` outside production, `lax` in production |
+| `COOKIE_SECURE` | `1` forces the `Secure` cookie flag when the proxy does not report HTTPS | unset |
+| `TRUST_PROXY` | `1` reads the client address from `X-Forwarded-For` for rate limits | unset |
+| `SEED_DEMO` | `1` or `0` forces the sample store on or off | on outside production |
+| `DEMO_AUTO_REVIEW` | `0` sends sellers and listings to the operations queue instead of auto-approving | on outside production |
+| `DEV_MAIL_PREVIEW` | `1` shows verification, reset and invite links on screen when no SMTP account is set. Ignored in production | unset |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE`, `MAIL_FROM` | Outgoing email | unset (no email is sent) |
+| `OPS_API_KEY` | Enables the operations API. Must be at least 16 characters | unset (API returns 503) |
+
+### Operations API
+
+Staff actions have no screen yet; they are HTTP endpoints protected by `X-Ops-Key: <OPS_API_KEY>` (optional `X-Ops-Staff: <name>` for the audit trail).
+
+| Request | Purpose |
+| --- | --- |
+| `GET /api/ops/sellers?status=under_review` | Sellers waiting for review |
+| `POST /api/ops/sellers/:code/review` | `{ "decision": "approve" \| "reject" \| "action_required", "note": "…" }` |
+| `GET /api/ops/listings` · `POST /api/ops/listings/:code/review` | Approve or reject a submitted listing (a rejection needs a note) |
+| `GET /api/ops/tickets` · `POST /api/ops/tickets/:code/reply` | Answer a seller ticket |
+| `POST /api/ops/settlements/:code/paid` | Record a payout reference once money has been sent |
+
+### Security notes
+
+Passwords are hashed with scrypt; sessions are random tokens stored hashed, in an `HttpOnly` cookie. Every state-changing request must carry the `X-NearBuy-Request: 1` header and come from the same origin, so cross-site form posts are refused. Every query is scoped to the signed-in seller. Uploads are checked by content, not file name. The Seller Hub pages are served with a Content-Security-Policy that allows no inline or third-party script. Rate limits are held in memory, so a multi-instance deployment needs a shared store. `node:sqlite` is still marked experimental by Node; for production traffic move the same schema to a managed database.
+
+### Tests
+
+`tests/seller-hub.test.cjs` starts the real server on a spare port with a temporary data folder and exercises it over HTTP: security headers and CSRF, sign-in behind an HTTPS proxy and for every demo account, registration through approval, listing review, tenant isolation, the order lifecycle with stock and ledger, returns, inventory, promotions, tickets, role limits, invitations and password reset, and every page endpoint and export.
 
 ### Customer Discover
 
