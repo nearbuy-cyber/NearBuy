@@ -6,7 +6,8 @@
   <meta name="theme-color" content="#081428" />
   <meta name="robots" content="noindex" />
   <title>Customer sign in · NearBuy</title>
-  <meta http-equiv="refresh" content="2;url=/portal.html#/shop/home" />
+  <meta http-equiv="refresh" content="0;url=/portal.html#/shop/home?login=1" />
+  <script>location.replace('/portal.html#/shop/home?login=1');</script>
   <link rel="icon" href="/public/assets/nearbuy-logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -60,12 +61,12 @@
     <h1>Customer sign in</h1>
     <p>Opening the customer portal, where you can sign in with the demo account or switch profile.</p>
     <div class="bar" aria-hidden="true"><i></i></div>
-    <a class="btn" href="/portal.html#/shop/home">Continue to sign in</a>
+    <a class="btn" href="/portal.html#/shop/home?login=1">Continue to sign in</a>
     <a class="back" href="/">← Back to NearBuy home</a>
     <p class="note">Prototype demo · no real accounts, payments or dispatch.</p>
   </main>
   <script>
-    setTimeout(function () { location.replace('/portal.html#/shop/home'); }, 700);
+    setTimeout(function () { location.replace('/portal.html#/shop/home?login=1'); }, 120);
   </script>
 </body>
 </html>

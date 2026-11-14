@@ -496,15 +496,28 @@ const SURFACES = {
 };
 
 const route = { surface: 'shop', view: 'home', id: null };
-const ui = { drawer: false, modal: null, palette: null, query: '', filters: {}, onboardError: '', signInError: '', profileEdit: '', profileError: '' };
+const ui = { drawer: false, cartDrawer: false, heroSlide: 0, modal: null, palette: null, query: '', filters: {}, onboardError: '', signInError: '', profileEdit: '', profileError: '' };
+
+function parseQueryMap(qs) {
+  const out = {};
+  String(qs || '').replace(/^\?/, '').split('&').filter(Boolean).forEach((pair) => {
+    const idx = pair.indexOf('=');
+    const k = idx >= 0 ? pair.slice(0, idx) : pair;
+    const v = idx >= 0 ? pair.slice(idx + 1) : '';
+    try { out[decodeURIComponent(k)] = decodeURIComponent(v.replace(/\+/g, ' ')); } catch (_) { out[k] = v; }
+  });
+  return out;
+}
 
 function readRoute() {
   const raw = location.hash.replace(/^#\/?/, '');
   const hashQuery = raw.includes('?') ? raw.slice(raw.indexOf('?') + 1) : '';
   const parts = raw.split('?')[0].split('/').filter(Boolean);
-  if (hashQuery) {
-    const cat = new URLSearchParams(hashQuery).get('cat');
-    if (cat) ui.category = cat;
+  const params = Object.assign(parseQueryMap(location.search), parseQueryMap(hashQuery));
+  if (params.cat) ui.category = params.cat;
+  if (params.login === '1' && !portalOpen('shop') && !ui.loginPromptShown) {
+    ui.loginPromptShown = true;
+    ui.pendingLoginModal = true;
   }
   if (parts.length && SURFACES[parts[0]]) {
     route.surface = parts[0];
@@ -524,8 +537,9 @@ function go(surface, view = 'home', id = null) {
   const valid = target.nav.some((n) => n.view === view) || ['shop', 'product', 'order', 'checkout', 'register'].includes(view);
   if (!valid) view = (target.nav.find((n) => n.view) || { view: 'home' }).view;
   const next = `#/${surface}/${view}${id ? `/${encodeURIComponent(id)}` : ''}`;
-  if (location.hash === next) { paint(); } else { location.hash = next; }
   ui.drawer = false;
+  ui.cartDrawer = false;
+  if (location.hash === next) { paint(); } else { location.hash = next; }
   syncDrawer();
   window.scrollTo({ top: 0 });
 }
@@ -633,6 +647,242 @@ function syncDrawer() {
   const rail = $('#rail'), scrim = $('#scrim');
   if (rail) rail.classList.toggle('open', ui.drawer);
   if (scrim) scrim.classList.toggle('show', ui.drawer);
+}
+
+/* ------------------------ customer storefront chrome ----------------------- */
+const SHOP_HERO_SLIDES = [
+  {
+    eyebrow: 'NEIGHBOURHOOD SHOPPING DAYS',
+    title: 'Local savings.<br>Fresher every day.',
+    text: 'Discover everyday essentials, farm-fresh produce, bakery picks and stationery from shops around your street.',
+    img: '/public/assets/discover-local-market.jpg',
+    tag: 'Deals up to 20% off + LOCAL10',
+    cta: 'Shop today’s deals',
+    act: 'scroll-deals',
+    cat: ''
+  },
+  {
+    eyebrow: 'BAKED & CHILLED THIS MORNING',
+    title: 'Fresh dairy, bread<br>&amp; harvest nearby.',
+    text: 'Whole milk, country sourdough, free-range eggs and seasonal fruit from Green Basket Market & Daily Roots.',
+    img: '/public/assets/discover-milk.jpg',
+    tag: 'Free delivery at ₹199+',
+    cta: 'Explore bakery & dairy',
+    act: 'category',
+    cat: 'bakery'
+  },
+  {
+    eyebrow: 'DESK, HOME & DAILY LIVING',
+    title: 'Thoughtful finds for<br>study &amp; home.',
+    text: 'Ruled notebooks, pens, canvas totes, steel bottles and gentle care from trusted neighbourhood stores.',
+    img: '/public/assets/portal-customer.jpg',
+    tag: 'Always-free store pickup',
+    cta: 'Browse stationery & home',
+    act: 'category',
+    cat: 'stationery'
+  }
+];
+
+function dealTimerText() {
+  const now = new Date();
+  const end = new Date(now);
+  end.setHours(23, 59, 59, 999);
+  const sec = Math.max(0, Math.floor((end - now) / 1000));
+  const h = String(Math.floor(sec / 3600)).padStart(2, '0');
+  const m = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+  const s = String(sec % 60).padStart(2, '0');
+  return `ENDS IN ${h}:${m}:${s}`;
+}
+
+function shopTopbarHtml() {
+  const signedIn = portalOpen('shop');
+  const activeOrders = openOrders().length;
+  const saved = savedCount();
+  const count = cartCount();
+  return `<header class="nb-store-topbar">
+    <div class="nb-top-inner">
+      <a class="nb-brand" href="#/shop/home" data-act="nav" data-surface="shop" data-view="home" aria-label="NearBuy customer portal home">
+        <span class="nb-brand-mark">${LOGO}</span>
+        <span class="nb-brand-copy">
+          <span class="nb-brand-name">Near<span>Buy</span></span>
+          <span class="nb-brand-tag">Shop <b>Local</b> ✦</span>
+        </span>
+      </a>
+
+      <button class="nb-loc-btn" type="button" data-act="area" aria-label="Change neighbourhood, currently ${esc(areaLabel())}">
+        ${icon('pin', 'sm')}
+        <span><small>Delivering to</small><b>${esc(areaLabel())}</b></span>
+        ${icon('chevronDown', 'sm')}
+      </button>
+
+      <div class="nb-search-wrap">
+        <form class="nb-searchbox" id="store-search" role="search">
+          <label class="sr-only" for="nbStoreSearch">Search for products, shops and categories</label>
+          <input id="nbStoreSearch" name="q" type="search" value="${esc(route.view === 'explore' ? (ui.query || '') : '')}" placeholder="Search for local products, shops, groceries and more" autocomplete="off" />
+          <button type="submit" aria-label="Search">${icon('search')}</button>
+        </form>
+        <div class="nb-search-hint" id="nbSearchHint">
+          <span class="nb-search-hint__label">Type a product, category or local shop and press Enter — or try:</span>
+          <div class="nb-search-hint__chips">
+            <button type="button" data-act="quick-search" data-q="milk">Milk</button>
+            <button type="button" data-act="quick-search" data-q="bananas">Bananas</button>
+            <button type="button" data-act="quick-search" data-q="sourdough">Sourdough</button>
+            <button type="button" data-act="quick-search" data-q="notebook">Notebooks</button>
+            <button type="button" data-act="quick-search" data-q="tote">Tote bag</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="nb-top-actions">
+        ${signedIn
+          ? `<button class="nb-login-btn is-signed-in" type="button" data-act="nav" data-surface="shop" data-view="account" aria-label="Your account">
+               <span class="nb-user-ava">${esc(CUSTOMER.initials)}</span><span>${esc(CUSTOMER.name.split(' ')[0])}</span>
+             </button>
+             <button class="nb-top-action" type="button" data-act="nav" data-surface="shop" data-view="orders">
+               ${icon('package')}<span class="nb-label">Orders</span>${activeOrders ? `<span class="nb-mini-count">${activeOrders}</span>` : ''}
+             </button>
+             <button class="nb-top-action nb-signout-btn" type="button" data-act="sign-out" aria-label="Sign out" title="Sign out">
+               ${icon('logout')}<span class="nb-label">Sign out</span>
+             </button>`
+          : `<button class="nb-login-btn" id="nbLoginOpen" type="button" data-act="shop-login-open">Login</button>`}
+        <button class="nb-top-action" id="nbSellerTop" type="button" data-act="shop-seller-open">
+          ${icon('store')}<span class="nb-label">Sell Locally</span>
+        </button>
+        <button class="nb-top-action" id="nbWishlistTop" type="button" data-act="nav" data-surface="shop" data-view="saved">
+          ${icon('heart')}<span class="nb-label">Saved</span>${saved ? `<span class="nb-mini-count">${saved}</span>` : ''}
+        </button>
+        <button class="nb-top-action nb-cart-btn" id="nbCartOpen" type="button" data-act="cart-drawer-open" aria-label="Open shopping cart (${count} items)">
+          ${icon('bag')}<span class="nb-label">Cart</span><span class="nb-cart-count" id="nbCartCount">${count}</span>
+        </button>
+      </div>
+    </div>
+  </header>`;
+}
+
+function shopCategoryStripHtml() {
+  const curCat = route.view === 'explore' ? (ui.category || 'all') : '';
+  const items = [
+    { label: 'Top Offers', ic: 'tag', act: 'discover-deals', cat: '', active: route.view === 'explore' && !!ui.exploreDeals },
+    { label: 'Groceries', ic: 'store', act: 'category', cat: 'grocery', active: curCat === 'grocery' },
+    { label: 'Fresh Produce', ic: 'leaf', act: 'category', cat: 'fresh', active: curCat === 'fresh' },
+    { label: 'Bakery & Dairy', ic: 'bread', act: 'category', cat: 'bakery', active: curCat === 'bakery' },
+    { label: 'Stationery', ic: 'book', act: 'category', cat: 'stationery', active: curCat === 'stationery' },
+    { label: 'Home & Kitchen', ic: 'home', act: 'category', cat: 'home', active: curCat === 'home' },
+    { label: 'Personal Care', ic: 'sparkles', act: 'category', cat: 'personal', active: curCat === 'personal' },
+    { label: 'Local Shops', ic: 'pin', act: 'nav', surface: 'shop', view: 'shops', active: route.view === 'shops' || route.view === 'shop' },
+    { label: 'All Finds', ic: 'grid', act: 'discover-all', cat: '', active: route.view === 'explore' && curCat === 'all' && !ui.exploreDeals }
+  ];
+  return `<div class="nb-cat-bar">
+    <nav class="nb-cat-strip" aria-label="Shopping categories">
+      ${items.map((item) => `<button class="nb-cat-item ${item.active ? 'active' : ''}" type="button" data-act="${item.act}" ${item.cat ? `data-cat="${item.cat}"` : ''} ${item.surface ? `data-surface="${item.surface}" data-view="${item.view}"` : ''}>
+        <span class="nb-cat-icon" aria-hidden="true">${icon(item.ic)}</span>
+        <span>${esc(item.label)}</span>
+      </button>`).join('')}
+    </nav>
+  </div>`;
+}
+
+function shopFooterHtml() {
+  return `<footer class="nb-footer">
+    <div class="nb-footer-inner">
+      <div>
+        <h4>About NearBuy</h4>
+        <a href="/about/">About NearBuy</a>
+        <a href="/">Public Homepage</a>
+        <a href="/roadmap/">Platform Roadmap</a>
+        <button type="button" data-act="nav" data-surface="shop" data-view="shops">Neighbourhood Shops</button>
+      </div>
+      <div>
+        <h4>Shop Categories</h4>
+        <button type="button" data-act="discover-deals">Deals of the Day</button>
+        <button type="button" data-act="category" data-cat="fresh">Fresh Produce</button>
+        <button type="button" data-act="category" data-cat="bakery">Bakery &amp; Dairy</button>
+        <button type="button" data-act="category" data-cat="stationery">Books &amp; Stationery</button>
+      </div>
+      <div>
+        <h4>Your Shopping</h4>
+        <button type="button" data-act="nav" data-surface="shop" data-view="account">Customer Account</button>
+        <button type="button" data-act="nav" data-surface="shop" data-view="orders">Orders &amp; Tracking</button>
+        <button type="button" data-act="nav" data-surface="shop" data-view="saved">Saved Items</button>
+        <button type="button" data-act="nav" data-surface="shop" data-view="cart">Shopping Cart</button>
+      </div>
+      <div>
+        <h4>Partner Locally</h4>
+        <button type="button" data-act="shop-seller-open">Sell on NearBuy</button>
+        <a href="/seller/register/">Register a Local Shop</a>
+        <a href="/runner/register/">Join as Delivery Partner</a>
+        <button type="button" data-act="reset">Reset Demo Data</button>
+      </div>
+      <div>
+        <h4>Help &amp; Support</h4>
+        <button type="button" data-act="nav" data-surface="shop" data-view="help">Portal Help Centre</button>
+        <a href="/help/">Public FAQ &amp; Support</a>
+        <a href="mailto:hello@nearbuy.in">hello@nearbuy.in</a>
+        <span class="nb-footer-meta">${esc(areaLabel())} · South Delhi (Demo)</span>
+      </div>
+    </div>
+    <div class="nb-footer-bottom">
+      <div class="nb-footer-brand">${LOGO}<span><b>Near<em>Buy</em></b> · Your neighbourhood, everything you need.</span></div>
+      <p>© 2026 NearBuy Neighbourhood Marketplace · Interactive prototype demo. All products, shops, prices and orders are simulated locally in this browser.</p>
+    </div>
+  </footer>`;
+}
+
+function shopCartDrawerHtml() {
+  const lines = cartLines();
+  const totals = orderTotals(lines, 'Delivery');
+  const open = !!ui.cartDrawer;
+  const offerApplied = state.coupon === 'LOCAL10';
+  return `<div class="nb-drawer-backdrop ${open ? 'open' : ''}" data-act="cart-drawer-close" aria-hidden="${!open}"></div>
+    <aside class="nb-drawer ${open ? 'open' : ''}" id="nbCartDrawer" aria-label="Shopping cart" aria-hidden="${!open}">
+      <div class="nb-drawer-head">
+        <div>
+          <h2>Your Shopping Cart</h2>
+          <small>${lines.length ? `${cartCount()} item${cartCount() === 1 ? '' : 's'} from nearby shops` : 'Ready for your local finds'}</small>
+        </div>
+        <button class="nb-drawer-close" type="button" data-act="cart-drawer-close" aria-label="Close cart">${icon('x', 'sm')}</button>
+      </div>
+      <div class="nb-drawer-body">
+        ${lines.length ? lines.map((l) => {
+          const img = productImageUrls(l)[0] || '';
+          return `<div class="nb-cart-line">
+            <button class="nb-cart-thumb ${esc(l.tone || '')}" type="button" data-act="nav" data-surface="shop" data-view="product" data-id="${esc(l.id)}" aria-label="View ${esc(l.name)}">
+              ${img ? `<img src="${esc(img)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-product-image="drawer" /><span data-image-fallback hidden>${esc(l.emoji || '🛍️')}</span>` : `<span>${esc(l.emoji || '🛍️')}</span>`}
+            </button>
+            <div class="nb-cart-info">
+              <button class="nb-cart-title" type="button" data-act="nav" data-surface="shop" data-view="product" data-id="${esc(l.id)}">${esc(l.name)}</button>
+              <small>${esc(shopById(l.shop).name)} · ${esc(l.detail)}</small>
+              <p>${money(l.price)} ${l.mrp > l.price ? `<del>${money(l.mrp)}</del>` : ''}</p>
+              <div class="nb-cart-qty">
+                <button type="button" data-act="cart-qty" data-id="${esc(l.id)}" data-delta="-1" aria-label="Decrease quantity for ${esc(l.name)}">−</button>
+                <b>${l.qty}</b>
+                <button type="button" data-act="cart-qty" data-id="${esc(l.id)}" data-delta="1" aria-label="Increase quantity for ${esc(l.name)}">+</button>
+                <button class="nb-cart-remove" type="button" data-act="cart-remove" data-id="${esc(l.id)}">REMOVE</button>
+              </div>
+            </div>
+          </div>`;
+        }).join('') : `<div class="nb-drawer-empty">
+          <div class="nb-drawer-empty__icon">${icon('bag', 'lg')}</div>
+          <h3>Your cart is empty</h3>
+          <p>Add everyday essentials or local deals to get started.</p>
+          <button class="nb-primary-btn" type="button" data-act="discover-deals">Explore today’s deals →</button>
+        </div>`}
+      </div>
+      ${lines.length ? `<div class="nb-drawer-foot">
+        <button class="nb-drawer-offer ${offerApplied ? 'applied' : ''}" type="button" data-act="discover-offer">
+          ${icon('tag', 'sm')}
+          <span>${offerApplied ? 'LOCAL10 applied · saving 10%' : 'Tap to apply LOCAL10 (10% demo discount)'}</span>
+        </button>
+        <div class="nb-drawer-rows">
+          <div><span>Subtotal</span><b>${money(totals.subtotal)}</b></div>
+          ${totals.discount ? `<div class="is-green"><span>LOCAL10 discount</span><b>−${money(totals.discount)}</b></div>` : ''}
+          <div><span>Local delivery</span><b>${totals.delivery ? money(totals.delivery) : 'Free'}</b></div>
+        </div>
+        <div class="nb-drawer-total"><span>Total (demo)</span><span>${money(totals.total)}</span></div>
+        <button class="nb-checkout-btn" type="button" data-act="cart-drawer-checkout">PLACE ORDER · CHECKOUT →</button>
+        <button class="nb-drawer-link" type="button" data-act="cart-drawer-full">Open full cart view</button>
+      </div>` : ''}
+    </aside>`;
 }
 
 /* --------------------------------- overlay -------------------------------- */
@@ -775,9 +1025,10 @@ function productCard(p, opts = {}) {
   const out = p.stock <= 0;
   const image = opts.featureImage ? (productImageUrls(p)[0] || '') : '';
   const fallbackIcon = CATEGORIES.find((category) => category.id === p.cat)?.icon || 'package';
+  const fallbackVisual = p.emoji ? `<span class="prod__emoji">${esc(p.emoji)}</span>` : icon(fallbackIcon);
   return `<article class="prod">
     <button class="prod__visual ${p.tone}" data-act="nav" data-surface="shop" data-view="product" data-id="${p.id}" aria-label="View ${esc(p.name)}${p.badge ? ` — ${esc(p.badge)}` : ''}">
-      ${image ? `<img class="prod__photo" src="${esc(image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-product-image="card" /><span class="prod__image-fallback" data-image-fallback hidden aria-hidden="true">${icon(fallbackIcon)}</span>` : `<span class="prod__image-fallback" aria-hidden="true">${icon(fallbackIcon)}</span>`}
+      ${image ? `<img class="prod__photo" src="${esc(image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-product-image="card" /><span class="prod__image-fallback" data-image-fallback hidden aria-hidden="true">${fallbackVisual}</span>` : `<span class="prod__image-fallback" aria-hidden="true">${fallbackVisual}</span>`}
       ${p.badge ? `<span class="prod__badge" aria-hidden="true">${esc(p.badge)}</span>` : ''}
     </button>
     <button class="prod__save ${saved ? 'on' : ''}" data-act="save" data-id="${p.id}" aria-label="${saved ? `Remove ${esc(p.name)} from saved items` : `Save ${esc(p.name)} for later`}" aria-pressed="${saved}">${icon('heart')}</button>
@@ -792,6 +1043,31 @@ function productCard(p, opts = {}) {
           : `<button class="prod__add" data-act="add" data-id="${p.id}" aria-label="Add ${esc(p.name)} to cart">${icon('plus')}</button>`}
       </div>
     </div>
+  </article>`;
+}
+function shelfProductCard(p) {
+  const shop = shopById(p.shop);
+  const saved = state.saved.includes(p.id);
+  const out = p.stock <= 0;
+  const image = productImageUrls(p)[0] || '';
+  const fallbackIcon = CATEGORIES.find((category) => category.id === p.cat)?.icon || 'package';
+  const fallbackVisual = p.emoji ? `<span class="nb-product-emoji">${esc(p.emoji)}</span>` : icon(fallbackIcon, 'lg');
+  const pctOff = p.mrp > p.price ? Math.round((1 - p.price / p.mrp) * 100) : 0;
+  return `<article class="nb-product">
+    <button class="nb-wish ${saved ? 'active' : ''}" type="button" data-act="save" data-id="${esc(p.id)}" aria-label="${saved ? `Remove ${esc(p.name)} from saved items` : `Save ${esc(p.name)} for later`}" aria-pressed="${saved}">${saved ? '♥' : '♡'}</button>
+    <button class="nb-product-visual ${esc(p.tone || '')}" type="button" data-act="nav" data-surface="shop" data-view="product" data-id="${esc(p.id)}" aria-label="View ${esc(p.name)}">
+      ${image
+        ? `<img class="nb-product-img" src="${esc(image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-product-image="shelf" /><span class="nb-product-fallback" data-image-fallback hidden aria-hidden="true">${fallbackVisual}</span>`
+        : `<span class="nb-product-fallback" aria-hidden="true">${fallbackVisual}</span>`}
+      ${p.badge ? `<span class="nb-product-badge">${esc(p.badge)}</span>` : ''}
+    </button>
+    <h3 title="${esc(p.name)}"><button type="button" data-act="nav" data-surface="shop" data-view="product" data-id="${esc(p.id)}">${esc(p.name)}</button></h3>
+    <p class="nb-offer">${money(p.price)}${pctOff ? ` <del>${money(p.mrp)}</del> · ${pctOff}% off` : ''}</p>
+    <p class="nb-sub">${esc(p.detail)}</p>
+    <button class="nb-shop-chip" type="button" data-act="nav" data-surface="shop" data-view="shop" data-id="${esc(shop.id)}">${icon('store', 'sm')} ${esc(shop.name)}</button>
+    ${out
+      ? `<span class="nb-sold-out">Sold out</span>`
+      : `<button class="nb-add-cart" type="button" data-act="add" data-id="${esc(p.id)}">＋ ADD TO CART</button>`}
   </article>`;
 }
 function shopCard(shop) {
@@ -838,106 +1114,223 @@ function discoverShopCard(shop) {
   </article>`;
 }
 function shopHome() {
-  const popular = [...state.catalogue]
-    .filter((p) => p.stock > 0)
-    .sort((a, b) => (b.sold || 0) - (a.sold || 0))
-    .slice(0, 4);
-  const featured = [...SHOPS].sort((a, b) => Number(b.open) - Number(a.open) || a.distance - b.distance).slice(0, 3);
-  const ordersInProgress = openOrders().length;
-  const saved = savedCount();
-  const categoryIcons = { grocery: 'bag', fresh: 'leaf', bakery: 'bread', stationery: 'book', home: 'home', personal: 'heart' };
-  const offerApplied = state.coupon === 'LOCAL10';
-  return `<div class="page discover-page">
-    <header class="discover-welcome">
-      <div>
-        <span class="discover-eyebrow"><i></i> YOUR NEIGHBOURHOOD, ALL TOGETHER</span>
-        <h1>Hello, ${esc(CUSTOMER.name.split(' ')[0])} <span aria-hidden="true">✳</span></h1>
-        <p>Find a little more to love, right where you live.</p>
-      </div>
-      <button class="discover-location" data-act="area">
-        <span class="discover-location__icon">${icon('pin')}</span>
-        <span><small>SHOPPING IN</small> <b>${esc(areaLabel())}</b></span><span class="sr-only">Change your demo neighbourhood</span>${icon('chevronDown', 'sm')}
-      </button>
-    </header>
+  const inStock = state.catalogue.filter((p) => p.stock > 0);
+  const discounted = [...inStock].filter((p) => p.mrp > p.price).sort((a, b) => (b.sold || 0) - (a.sold || 0));
+  const dealsShelf = (discounted.length >= 5 ? discounted : [...inStock].sort((a, b) => (b.sold || 0) - (a.sold || 0))).slice(0, 5);
+  const freshPool = [...inStock].filter((p) => p.cat === 'fresh' || p.cat === 'grocery');
+  const freshShelf = (freshPool.length ? freshPool : inStock).slice(0, 5);
+  const stationeryPool = [...inStock].filter((p) => p.cat === 'stationery' || p.cat === 'bakery').sort((a, b) => (a.cat === 'stationery' ? -1 : 1));
+  const stationeryShelf = (stationeryPool.length ? stationeryPool : inStock).slice(0, 5);
+  const homePool = [...inStock].filter((p) => p.cat === 'home' || p.cat === 'personal' || p.cat === 'grocery').sort((a, b) => (a.cat === 'grocery' ? 1 : -1));
+  const homeShelf = (homePool.length ? homePool : inStock).slice(0, 5);
 
-    <section class="discover-hero" aria-labelledby="discoverHeroTitle">
-      <div class="discover-hero__image" aria-hidden="true"><img src="/public/assets/discover-local-market.jpg" alt="" fetchpriority="high" /></div>
-      <div class="discover-hero__copy">
-        <span class="discover-hero__eyebrow">${icon('sparkles')} A LITTLE CLOSER TO HOME</span>
-        <h2 id="discoverHeroTitle">Good things are<br />just around <em>the corner.</em></h2>
-        <p>From fresh picks to everyday essentials, discover the neighbourhood shops you’ll love.</p>
-        <form class="discover-search" id="hero-search" role="search">
-          <label class="sr-only" for="heroSearch">Search products, shops and categories</label>
-          ${icon('search')}
-          <input id="heroSearch" name="q" type="search" placeholder="Search milk, bread, shops..." autocomplete="off" />
-          <button type="submit">Search ${icon('arrowRight')}</button>
-        </form>
-        <div class="discover-suggestions"><span>Popular:</span>
-          <button type="button" data-act="category" data-cat="fresh">Fresh produce</button>
-          <button type="button" data-act="category" data-cat="bakery">Bakery & dairy</button>
-          <button type="button" data-act="category" data-cat="stationery">Stationery</button>
+  const slideIdx = clamp(Number(ui.heroSlide) || 0, 0, SHOP_HERO_SLIDES.length - 1);
+  const s = SHOP_HERO_SLIDES[slideIdx];
+  const offerApplied = state.coupon === 'LOCAL10';
+  const tileMeta = {
+    grocery: { emoji: '🛒', sub: 'Daily staples & pantry' },
+    fresh: { emoji: '🥬', sub: 'Fruits & seasonal greens' },
+    bakery: { emoji: '🍞', sub: 'Loaves, milk & eggs' },
+    stationery: { emoji: '📚', sub: 'Notebooks, pens & reads' },
+    home: { emoji: '🏠', sub: 'Totes, bottles & linens' },
+    personal: { emoji: '🧴', sub: 'Gentle everyday care' }
+  };
+
+  return `<div class="nb-store-page discover-page">
+    <section class="nb-hero" aria-label="Featured neighbourhood promotions">
+      <div class="nb-hero-copy">
+        <div class="nb-eyebrow" id="nbHeroEyebrow">${esc(s.eyebrow)}</div>
+        <h1 id="nbHeroTitle">${s.title}</h1>
+        <p id="nbHeroText">${esc(s.text)}</p>
+        <div class="nb-hero-actions">
+          <button class="nb-primary-btn" id="nbHeroCta" type="button" data-act="${esc(s.act)}" ${s.cat ? `data-cat="${esc(s.cat)}"` : ''}>${esc(s.cta)} &nbsp;→</button>
+          <button class="nb-ghost-hero-btn" type="button" data-act="discover-all">Browse all finds</button>
         </div>
       </div>
-      <div class="discover-hero__note" aria-hidden="true"><span>${icon('store')}</span><div><b>Made for local living</b><small>Lovely finds, closer to you</small></div></div>
-    </section>
-
-    <section class="discover-shortcuts" aria-label="Your shopping shortcuts">
-      <button class="discover-shortcut" data-act="nav" data-surface="shop" data-view="shops">
-        <span class="discover-shortcut__icon discover-shortcut__icon--green">${icon('store')}</span>
-        <span><b>${SHOPS.length} local shops</b><small>Meet your neighbourhood</small></span>${icon('arrowUpRight', 'discover-shortcut__arrow')}
-      </button>
-      <button class="discover-shortcut" data-act="nav" data-surface="shop" data-view="saved">
-        <span class="discover-shortcut__icon discover-shortcut__icon--rose">${icon('heart')}</span>
-        <span><b>${saved} saved ${saved === 1 ? 'find' : 'finds'}</b><small>All your favourites, together</small></span>${icon('arrowUpRight', 'discover-shortcut__arrow')}
-      </button>
-      <button class="discover-shortcut" data-act="nav" data-surface="shop" data-view="orders">
-        <span class="discover-shortcut__icon discover-shortcut__icon--blue">${icon('package')}</span>
-        <span><b>${ordersInProgress ? `${ordersInProgress} order${ordersInProgress === 1 ? '' : 's'} in progress` : 'Track your orders'}</b><small>${ordersInProgress ? 'See the latest updates' : 'Your updates in one place'}</small></span>${icon('arrowUpRight', 'discover-shortcut__arrow')}
-      </button>
-    </section>
-
-    <section class="discover-section" aria-labelledby="discoverCategoriesTitle">
-      <div class="discover-section__head">
-        <div><span class="discover-section__kicker">A GOOD PLACE TO START</span><h2 id="discoverCategoriesTitle">Shop by category</h2><p>Everyday essentials, and a few lovely extras.</p></div>
-        <button class="discover-text-link" data-act="discover-all">Browse everything ${icon('arrowRight')}</button>
+      <div class="nb-hero-art" aria-hidden="true">
+        <div class="nb-hero-circle">
+          <img id="nbHeroImg" src="${esc(s.img)}" alt="" fetchpriority="high" />
+        </div>
       </div>
-      <div class="discover-categories">
-        ${CATEGORIES.filter((c) => c.id !== 'all').map((c) => {
-          const count = state.catalogue.filter((p) => p.cat === c.id).length;
-          return `<button class="discover-category discover-category--${c.id}" data-act="category" data-cat="${c.id}">
-            <span class="discover-category__art" aria-hidden="true">${icon(categoryIcons[c.id] || c.icon)}</span>
-            <span class="discover-category__name">${esc(c.label)}</span><small>${count} ${count === 1 ? 'find' : 'finds'}</small>
-            <span class="discover-category__arrow">${icon('arrowUpRight')}</span>
-          </button>`;
+      <div class="nb-hero-tag" id="nbHeroTag">${esc(s.tag)}</div>
+      <div class="nb-hero-dots" role="tablist" aria-label="Hero slides">
+        ${SHOP_HERO_SLIDES.map((item, idx) => `<button class="nb-dot ${idx === slideIdx ? 'active' : ''}" type="button" role="tab" aria-selected="${idx === slideIdx}" aria-label="Slide ${idx + 1}: ${esc(item.eyebrow)}" data-act="hero-slide" data-slide="${idx}"></button>`).join('')}
+      </div>
+    </section>
+
+    <div class="nb-promo-grid">
+      <article class="nb-promo nb-promo--1">
+        <div class="nb-promo-emoji" aria-hidden="true">🥬</div>
+        <div>
+          <h3>Fresh harvest nearby</h3>
+          <p>Seasonal fruit, greens and pantry staples from local grocers.</p>
+          <button class="nb-promo-link" type="button" data-act="category" data-cat="fresh">EXPLORE FRESH →</button>
+        </div>
+      </article>
+      <article class="nb-promo nb-promo--2">
+        <div class="nb-promo-emoji" aria-hidden="true">🍞</div>
+        <div>
+          <h3>Morning bakery &amp; dairy</h3>
+          <p>Whole milk, country sourdough and farm eggs ready around the corner.</p>
+          <button class="nb-promo-link" type="button" data-act="category" data-cat="bakery">SHOP BAKERY →</button>
+        </div>
+      </article>
+      <article class="nb-promo nb-promo--3">
+        <div class="nb-promo-emoji" aria-hidden="true">📚</div>
+        <div>
+          <h3>Desk, books &amp; home</h3>
+          <p>Thoughtful notebooks, pens, canvas totes and kitchen essentials.</p>
+          <button class="nb-promo-link" type="button" data-act="category" data-cat="stationery">DISCOVER MORE →</button>
+        </div>
+      </article>
+    </div>
+
+    <section class="nb-section" id="nb-deals" aria-labelledby="nbDealsTitle">
+      <div class="nb-section-head">
+        <div>
+          <div class="nb-dealbar">
+            <h2 id="nbDealsTitle">Deals of the Day</h2>
+            <span class="nb-timer" id="nbDealTimer">${dealTimerText()}</span>
+          </div>
+          <p>Handpicked neighbourhood finds at special store prices in ${esc(areaLabel())}</p>
+        </div>
+        <div class="nb-section-actions">
+          <button class="nb-offer-chip ${offerApplied ? 'is-applied' : ''}" type="button" data-act="discover-offer" aria-pressed="${offerApplied}">${offerApplied ? '✓ LOCAL10 Applied' : 'Use LOCAL10 · 10% off'}</button>
+          <button class="nb-view-all" type="button" data-act="discover-deals">VIEW ALL</button>
+        </div>
+      </div>
+      ${dealsShelf.length
+        ? `<div class="nb-products">${dealsShelf.map(shelfProductCard).join('')}</div>`
+        : emptyState('package', 'No products in stock right now', 'Browse the catalogue for more neighbourhood finds.', `<button class="btn btn--ghost btn--sm" data-act="discover-all">Browse everything</button>`)}
+    </section>
+
+    <section class="nb-section" id="nb-fresh" aria-labelledby="nbFreshTitle">
+      <div class="nb-section-head">
+        <div>
+          <h2 id="nbFreshTitle">Best of Fresh &amp; Groceries</h2>
+          <p>Seasonal fruit, leafy greens, wildflower honey and pantry staples</p>
+        </div>
+        <button class="nb-view-all" type="button" data-act="category" data-cat="fresh">VIEW ALL</button>
+      </div>
+      <div class="nb-products">${freshShelf.map(shelfProductCard).join('')}</div>
+    </section>
+
+    <section class="nb-wide-banner" aria-labelledby="discoverOfferTitle">
+      <div class="nb-wide-copy">
+        <span class="nb-wide-kicker">NEIGHBOURHOOD BASKET PERK</span>
+        <h2 id="discoverOfferTitle">Save an extra 10% with code LOCAL10</h2>
+        <p>Apply our local thank-you offer to your demo basket — plus free local delivery at ₹199+ after discounts, or always-free pickup from the shop.</p>
+        <div class="nb-wide-actions">
+          <button class="nb-primary-btn ${offerApplied ? 'is-applied' : ''}" type="button" data-act="discover-offer" aria-pressed="${offerApplied}">
+            ${offerApplied ? '✓ Offer applied to cart' : 'Apply LOCAL10 offer →'}
+          </button>
+          <button class="nb-ghost-hero-btn" type="button" data-act="discover-all">Browse all ${state.catalogue.length} finds</button>
+        </div>
+      </div>
+      <div class="nb-wide-big" aria-hidden="true">🧺</div>
+    </section>
+
+    <section class="nb-section" id="nb-stationery" aria-labelledby="nbStationeryTitle">
+      <div class="nb-section-head">
+        <div>
+          <h2 id="nbStationeryTitle">Books, Stationery &amp; Morning Picks</h2>
+          <p>Everyday notebooks, colour pencils, reads and local favourites</p>
+        </div>
+        <button class="nb-view-all" type="button" data-act="category" data-cat="stationery">VIEW ALL</button>
+      </div>
+      <div class="nb-products">${stationeryShelf.map(shelfProductCard).join('')}</div>
+    </section>
+
+    <section class="nb-section" id="nb-home" aria-labelledby="nbHomeTitle">
+      <div class="nb-section-head">
+        <div>
+          <h2 id="nbHomeTitle">Home, Kitchen &amp; Everyday Care</h2>
+          <p>Reusable totes, insulated bottles, soft kitchen towels and gentle care</p>
+        </div>
+        <button class="nb-view-all" type="button" data-act="category" data-cat="home">VIEW ALL</button>
+      </div>
+      <div class="nb-products">${homeShelf.map(shelfProductCard).join('')}</div>
+    </section>
+
+    <section class="nb-section" id="nb-shops" aria-labelledby="nbShopsTitle">
+      <div class="nb-section-head">
+        <div>
+          <h2 id="nbShopsTitle">Neighbourhood Stores Near You</h2>
+          <p>Every order goes straight to a real shop on a nearby street</p>
+        </div>
+        <button class="nb-view-all" type="button" data-act="nav" data-surface="shop" data-view="shops">VIEW ALL</button>
+      </div>
+      <div class="nb-shops-strip">
+        ${SHOPS.map((shop) => {
+          const itemCount = state.catalogue.filter((p) => p.shop === shop.id).length;
+          return `<article class="nb-shop-tile">
+            <div class="nb-shop-tile__top">
+              <span class="nb-shop-tile__emoji ${esc(shop.tone)}">${shop.emoji}</span>
+              <span class="nb-shop-tile__status ${shop.open ? 'open' : 'closed'}">${shop.open ? '● Open now' : 'Opens tomorrow'}</span>
+            </div>
+            <h3><button type="button" data-act="nav" data-surface="shop" data-view="shop" data-id="${esc(shop.id)}">${esc(shop.name)}</button></h3>
+            <p class="nb-shop-tile__cat">${esc(shop.cat)}</p>
+            <div class="nb-shop-tile__meta">
+              <span>★ ${shop.rating}</span>
+              <span>${esc(shop.area)} · ${shop.distance} km</span>
+              <span>${esc(shop.time)}</span>
+            </div>
+            <button class="nb-shop-tile__btn" type="button" data-act="nav" data-surface="shop" data-view="shop" data-id="${esc(shop.id)}">Visit shop (${itemCount}) →</button>
+          </article>`;
         }).join('')}
       </div>
     </section>
 
-    <section class="discover-section" aria-labelledby="discoverPopularTitle">
-      <div class="discover-section__head">
-        <div><span class="discover-section__kicker">THE NEIGHBOURHOOD EDIT</span><h2 id="discoverPopularTitle">Good finds, picked for you</h2><p>Popular picks from the shops around you.</p></div>
-        <div class="discover-section__actions"><button class="discover-deals-link" data-act="discover-deals">${icon('tag')} Shop deals</button><button class="discover-text-link" data-act="discover-all">See all finds ${icon('arrowRight')}</button></div>
+    <div class="nb-two-col">
+      <section class="nb-section" aria-labelledby="nbCatGridTitle">
+        <div class="nb-section-head">
+          <div>
+            <h2 id="nbCatGridTitle">Shop by category</h2>
+            <p>Something for every corner of local life</p>
+          </div>
+        </div>
+        <div class="nb-category-tiles">
+          ${CATEGORIES.filter((c) => c.id !== 'all').map((c) => {
+            const count = state.catalogue.filter((p) => p.cat === c.id).length;
+            const meta = tileMeta[c.id] || { emoji: '🛍️', sub: 'Local finds' };
+            return `<button class="nb-tile" type="button" data-act="category" data-cat="${esc(c.id)}">
+              <div class="nb-tile-ico" aria-hidden="true">${meta.emoji}</div>
+              <strong>${esc(c.label)}</strong>
+              <small>${esc(meta.sub)} · ${count} ${count === 1 ? 'item' : 'items'}</small>
+            </button>`;
+          }).join('')}
+        </div>
+      </section>
+
+      <section class="nb-section nb-seller-box" aria-labelledby="nbSellerBoxTitle">
+        <div class="nb-seller-icon" aria-hidden="true">${icon('store', 'lg')}</div>
+        <span class="nb-seller-kicker">NEARBUY SELLER HUB</span>
+        <h2 id="nbSellerBoxTitle">Grow your local shop with us</h2>
+        <p>Reach customers in your neighbourhood, manage your product catalogue and fulfil orders with store pickup or nearby Runner requests from a dedicated seller workspace.</p>
+        <button type="button" data-act="shop-seller-open">START SELLING →</button>
+      </section>
+    </div>
+
+    <section class="nb-section" aria-label="Shopping highlights">
+      <div class="nb-trust-row">
+        <div class="nb-trust">
+          <span class="nb-trust-ico" aria-hidden="true">${icon('truck')}</span>
+          <div><strong>Local delivery &amp; pickup</strong><small>Free pickup · ₹19 or free ₹199+*</small></div>
+        </div>
+        <div class="nb-trust">
+          <span class="nb-trust-ico" aria-hidden="true">${icon('lock')}</span>
+          <div><strong>Protected demo checkout</strong><small>Simulated safely in this browser*</small></div>
+        </div>
+        <div class="nb-trust">
+          <span class="nb-trust-ico" aria-hidden="true">${icon('package')}</span>
+          <div><strong>Live order tracking</strong><small>Follow from shop shelf to door</small></div>
+        </div>
+        <div class="nb-trust">
+          <span class="nb-trust-ico" aria-hidden="true">${icon('help')}</span>
+          <div><strong>Customer support</strong><small>Neighbourhood help centre</small></div>
+        </div>
       </div>
-      ${popular.length ? `<div class="prod-grid discover-products">${popular.map((p) => productCard(p, { featureImage: true })).join('')}</div>` : emptyState('package', 'No products in stock right now', 'Browse the catalogue for more neighbourhood finds.', `<button class="btn btn--ghost btn--sm" data-act="discover-all">Browse everything</button>`)}
     </section>
-
-    <section class="discover-offer" aria-labelledby="discoverOfferTitle">
-      <div class="discover-offer__icon" aria-hidden="true">${icon('gift')}</div>
-      <div class="discover-offer__copy"><span> A LITTLE THANK-YOU FOR SHOPPING LOCAL</span><h2 id="discoverOfferTitle">A little extra for your basket.</h2><p>Enjoy 10% off your demo order with <b>LOCAL10</b>. No real payment is taken.</p></div>
-      <button class="discover-offer__button ${offerApplied ? 'is-applied' : ''}" data-act="discover-offer" aria-pressed="${offerApplied}">${offerApplied ? `${icon('checkCircle')} Offer applied` : `Apply demo offer ${icon('arrowRight')}`}</button>
-    </section>
-
-    <section class="discover-section" aria-labelledby="discoverShopsTitle">
-      <div class="discover-section__head">
-        <div><span class="discover-section__kicker">GOOD PEOPLE, GREAT SHOPS</span><h2 id="discoverShopsTitle">Meet your local favourites</h2><p>Get to know the people behind your everyday finds.</p></div>
-        <button class="discover-text-link" data-act="nav" data-surface="shop" data-view="shops">See all shops ${icon('arrowRight')}</button>
-      </div>
-      <div class="discover-shop-grid">${featured.map(discoverShopCard).join('')}</div>
-    </section>
-
-    ${whyUseSection()}
-    ${howItWorksStrip()}
-    <p class="discover-demo-note">${icon('shield')} Demo neighbourhood · Stock, delivery and orders are simulated in this browser.</p>
   </div>`;
 }
 /* ---- "Why Use NearBuy?" — customer benefits band ---- */
@@ -3644,6 +4037,7 @@ function openLauncher() {
     <div class="modal__foot"><a class="btn btn--ghost btn--sm" href="/">Back to the public site</a><button class="btn btn--primary btn--sm" data-act="close">Close</button></div>`);
 }
 function openAccount() {
+  if (route.surface === 'shop' && !portalOpen('shop')) { openShopLoginModal(); return; }
   const persona = personaFor(route.surface);
   const portal = portalLabel(route.surface);
   openModal(`${modalHead(`${portal} account`, 'Signed in to this portal only.')}
@@ -3654,12 +4048,47 @@ function openAccount() {
         ${pill('Signed in', 'green', true)}
       </div>
       <div class="stack-sm mt-14">
+        ${route.surface === 'shop' ? `<button class="btn btn--ghost btn--sm btn--block" data-act="nav" data-surface="shop" data-view="account" onclick="closeModal()">${icon('user')} Account &amp; addresses</button>
+        <button class="btn btn--ghost btn--sm btn--block" data-act="nav" data-surface="shop" data-view="orders" onclick="closeModal()">${icon('package')} Orders &amp; tracking</button>` : ''}
         <button class="btn btn--ghost btn--sm btn--block" data-act="palette">${icon('command')} Search everything · ⌘K</button>
         <a class="btn btn--ghost btn--sm btn--block" href="/help/">${icon('help')} Help centre</a>
         <button class="btn btn--ghost btn--sm btn--block" data-act="reset">${icon('refresh')} Reset demo data</button>
         <button class="btn btn--danger btn--sm btn--block" data-act="sign-out">${icon('logout')} Sign out of this portal</button>
       </div>
       <div class="notice notice--plain mt-10">${icon('lock')}<span>Other NearBuy portals (${Object.values(PORTALS).map((x) => x.label).join(', ')}, Operations) sign in separately. This session opens none of them.</span></div>
+    </div>`);
+}
+function openShopLoginModal() {
+  const p = PORTALS.shop;
+  openModal(`${modalHead('Sign in to NearBuy', 'Access your customer orders, saved addresses and checkout.')}
+    <div class="modal__body portal-gate nb-login-modal">
+      <div class="nb-modal-brand"><img src="/public/assets/nearbuy-logo.png" alt="NearBuy" /></div>
+      <p class="small muted">Enter your customer account details to continue. Customer sessions are scoped strictly to shopping and never open seller, runner or operations tools.</p>
+      ${ui.signInError ? `<div class="notice mt-10">${icon('alert')}<span>${esc(ui.signInError)}</span></div>` : ''}
+      <form id="portalSignInForm" class="form-grid mt-12">
+        <input type="hidden" name="surface" value="shop" />
+        <label class="field"><span>Email</span><input class="input" type="email" name="email" autocomplete="username" placeholder="riya@nearbuy.demo" required /></label>
+        <label class="field"><span>Password</span><input class="input" type="password" name="password" autocomplete="current-password" placeholder="Your password" required /></label>
+        <button class="btn btn--primary btn--block" type="submit">${icon('lock')} Continue to NearBuy</button>
+      </form>
+      <button class="btn btn--ghost btn--block mt-8" type="button" data-act="fill-demo" data-surface="shop">Use demo customer credentials</button>
+      <div class="notice notice--plain mt-10">${icon('shield')}<span>Demo account: <b>${esc(p.email)}</b> / <b>${esc(p.pass)}</b>. Simulated in this browser — no OTP or external account is contacted.</span></div>
+    </div>`);
+}
+function openShopSellerModal() {
+  openModal(`${modalHead('Sell locally on NearBuy', 'Bring your neighbourhood shop online with Seller Hub.')}
+    <div class="modal__body nb-seller-modal">
+      <div class="nb-modal-brand"><img src="/public/assets/nearbuy-logo.png" alt="NearBuy" /></div>
+      <p class="small muted">Reach nearby customers in your serviceable radius, list products with store pickup or nearby Runner requests, and track orders in one dedicated workspace.</p>
+      <div class="stack-sm mt-14">
+        <div class="mini-stat"><span class="kpi__icon">${icon('store')}</span><div><b>Dedicated Seller Hub</b><small>Separate sign-in and permissions from your customer account.</small></div></div>
+        <div class="mini-stat"><span class="kpi__icon">${icon('truck')}</span><div><b>Pickup or nearby Runner</b><small>Offer free store collection or request an eligible local Runner.</small></div></div>
+      </div>
+      <div class="notice notice--plain mt-14">${icon('lock')}<span>Opening Seller Hub leaves this customer view and uses its own separate registration or sign-in.</span></div>
+    </div>
+    <div class="modal__foot">
+      <a class="btn btn--primary btn--sm" href="/seller/register/">Start seller registration ${icon('arrowRight', 'sm')}</a>
+      <a class="btn btn--ghost btn--sm" href="/seller/">Seller sign in</a>
     </div>`);
 }
 function openInbox() {
@@ -3856,9 +4285,34 @@ function openAreaForm(id) {
 /* --------------------------------- actions -------------------------------- */
 function handleAction(act, ds, el, event) {
   switch (act) {
-    case 'nav': go(ds.surface, ds.view, ds.id || null); break;
+    case 'nav': closeModal(); go(ds.surface, ds.view, ds.id || null); break;
     case 'switch': crossPortalNotice(ds.surface); break;
     case 'sign-out': signOutPortal(); break;
+    case 'shop-login-open': ui.signInError = ''; openShopLoginModal(); break;
+    case 'shop-seller-open': openShopSellerModal(); break;
+    case 'cart-drawer-open': ui.cartDrawer = true; paint(); break;
+    case 'cart-drawer-close': ui.cartDrawer = false; paint(); break;
+    case 'cart-drawer-checkout': ui.cartDrawer = false; go('shop', 'checkout'); break;
+    case 'cart-drawer-full': ui.cartDrawer = false; go('shop', 'cart'); break;
+    case 'hero-slide':
+      ui.heroSlide = clamp(Number(ds.slide) || 0, 0, SHOP_HERO_SLIDES.length - 1);
+      refreshPage();
+      break;
+    case 'quick-search': {
+      const hint = document.getElementById('nbSearchHint');
+      if (hint) hint.classList.toggle('show', false);
+      resetExploreFilters();
+      ui.query = String(ds.q || '').trim();
+      go('shop', 'explore');
+      if (ui.query) toast(`Showing results for “${ui.query}”.`, 'search');
+      break;
+    }
+    case 'scroll-deals': {
+      const target = document.getElementById('nb-deals');
+      if (target && target.scrollIntoView) target.scrollIntoView({ behavior: 'smooth' });
+      else handleAction('discover-deals', {});
+      break;
+    }
     case 'fill-demo': {
       const p = PORTALS[ds.surface];
       const form = el && el.closest('.portal-gate');
@@ -4341,7 +4795,11 @@ const PORTALS = {
   deliver: { label: 'Delivery Partner', icon: 'truck', email: 'rohan@nearbuy.demo', pass: 'Runner123!', persona: 'Rohan Kumar', blurb: 'Accept nearby deliveries' },
   fleet: { label: 'Fleet', icon: 'layers', email: 'arjun@nearbuy.demo', pass: 'Fleet123!', persona: 'Arjun Rao', blurb: 'Manage a delivery fleet' }
 };
-const PUBLIC_VIEWS = { sell: ['register'], deliver: ['register'] };
+const PUBLIC_VIEWS = {
+  shop: ['home', 'explore', 'shops', 'shop', 'product', 'cart', 'saved', 'help'],
+  sell: ['register'],
+  deliver: ['register']
+};
 const DEMO_PASSWORDS = Object.fromEntries(Object.entries(PORTALS).map(([k, v]) => [k, v.pass]));
 
 function portalSession() {
@@ -5094,16 +5552,36 @@ function paint() {
   const isNewView = key !== lastRouteKey;
   lastRouteKey = key;
   const y = window.scrollY;
+  const isShop = route.surface === 'shop';
   document.body.dataset.surface = route.surface;
+  document.body.classList.toggle('shop-storefront', isShop);
   const opsLocked = (route.surface === 'ops' && !adminSession()) || (!portalOpen(route.surface) && !portalPublic(route.surface, route.view));
-  document.body.classList.toggle('ops-locked', opsLocked);
-  const barHtml = opsLocked ? '' : mobilebarHtml();
-  $('#app').innerHTML = `${railHtml()}<div class="scrim ${ui.drawer ? 'show' : ''}" id="scrim" data-act="drawer"></div>
-    <div class="main">${topbarHtml()}<main class="content"><div id="page">${pageHtml()}</div></main></div>${barHtml}`;
-  document.body.classList.toggle('has-mobilebar', barHtml.length > 0);
-  renderOverlay();
-  syncDrawer();
-  document.title = `${viewTitle()} · ${currentMeta().label} — NearBuy One`;
+  document.body.classList.toggle('ops-locked', opsLocked && !isShop);
+  if (isShop) {
+    $('#app').innerHTML = `${shopTopbarHtml()}${shopCategoryStripHtml()}
+      <main class="nb-store-main" id="main"><div id="page">${pageHtml()}</div></main>
+      ${shopFooterHtml()}${shopCartDrawerHtml()}`;
+    document.body.classList.toggle('has-mobilebar', false);
+    if (ui.pendingLoginModal) {
+      ui.pendingLoginModal = false;
+      if (!portalOpen('shop')) {
+        openShopLoginModal();
+      } else {
+        renderOverlay();
+      }
+    } else {
+      renderOverlay();
+    }
+    document.title = `${viewTitle()} · Customer Portal — NearBuy`;
+  } else {
+    const barHtml = opsLocked ? '' : mobilebarHtml();
+    $('#app').innerHTML = `${railHtml()}<div class="scrim ${ui.drawer ? 'show' : ''}" id="scrim" data-act="drawer"></div>
+      <div class="main">${topbarHtml()}<main class="content"><div id="page">${pageHtml()}</div></main></div>${barHtml}`;
+    document.body.classList.toggle('has-mobilebar', barHtml.length > 0);
+    renderOverlay();
+    syncDrawer();
+    document.title = `${viewTitle()} · ${currentMeta().label} — NearBuy One`;
+  }
   window.scrollTo({ top: isNewView ? 0 : y, behavior: 'instant' in window ? 'instant' : 'auto' });
 }
 
@@ -5124,6 +5602,20 @@ function handleSubmit(form, event) {
   const fd = new FormData(form);
   const formId = form.id || form.dataset.form || '';
   switch (formId) {
+    case 'store-search': {
+      const q = (fd.get('q') || '').toString().trim();
+      const hint = document.getElementById('nbSearchHint');
+      if (!q && route.view === 'home') {
+        if (hint) hint.classList.toggle('show', true);
+        break;
+      }
+      if (hint) hint.classList.toggle('show', false);
+      resetExploreFilters();
+      ui.query = q;
+      go('shop', 'explore');
+      toast(ui.query ? `Showing results for “${ui.query}”.` : 'Showing everything nearby.', 'search');
+      break;
+    }
     case 'hero-search': {
       resetExploreFilters();
       ui.query = (fd.get('q') || '').toString();
@@ -5263,7 +5755,8 @@ function handleSubmit(form, event) {
       if (!p) break;
       if (email !== p.email || pass !== p.pass) {
         ui.signInError = `Those details do not match the ${p.label} portal. Each portal has its own account — a customer login cannot open seller, partner or operations tools.`;
-        paint();
+        if (ui.modal && surface === 'shop') openShopLoginModal();
+        else paint();
         toast('Sign-in failed for this portal.', 'alert');
         break;
       }
@@ -5355,12 +5848,31 @@ document.addEventListener('submit', (e) => {
   const form = e.target;
   handleSubmit(form, e);
 });
-window.addEventListener('hashchange', () => { ui.drawer = false; paint(); });
+document.addEventListener('focusin', (e) => {
+  if (e.target && e.target.id === 'nbStoreSearch') {
+    const hint = document.getElementById('nbSearchHint');
+    if (hint) hint.classList.toggle('show', true);
+  }
+});
+document.addEventListener('click', (e) => {
+  const hint = document.getElementById('nbSearchHint');
+  if (hint && (!e.target || !e.target.closest || !e.target.closest('.nb-search-wrap'))) {
+    hint.classList.toggle('show', false);
+  }
+});
+window.addEventListener('hashchange', () => { ui.drawer = false; ui.cartDrawer = false; paint(); });
 window.addEventListener('storage', (e) => { if (e.key === KEY) { toast('Demo data updated in another tab.', 'refresh'); } });
 document.addEventListener('keydown', (e) => {
   const mod = e.metaKey || e.ctrlKey;
   if (mod && e.key.toLowerCase() === 'k') { e.preventDefault(); ui.palette ? closeModal() : openPalette(); return; }
-  if (e.key === 'Escape') { if (ui.modal || ui.palette) closeModal(); else if (ui.drawer) { ui.drawer = false; syncDrawer(); } return; }
+  if (e.key === 'Escape') {
+    const hint = document.getElementById('nbSearchHint');
+    if (hint) hint.classList.toggle('show', false);
+    if (ui.modal || ui.palette) closeModal();
+    else if (ui.cartDrawer) { ui.cartDrawer = false; paint(); }
+    else if (ui.drawer) { ui.drawer = false; syncDrawer(); }
+    return;
+  }
   if (e.key === 'Tab' && ui.modal?.cls === 'modal--product') {
     const dialog = document.querySelector('#overlay .modal--product');
     const focusable = dialog ? Array.from(dialog.querySelectorAll('button:not([disabled]), input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, a[href], [tabindex]:not([tabindex="-1"])')).filter((item) => item.getClientRects().length) : [];
@@ -5404,4 +5916,36 @@ document.addEventListener('keydown', (e) => {
   save();
   readRoute();
   paint();
+  if (typeof setInterval === 'function') {
+    setInterval(() => {
+      const timerEl = document.getElementById('nbDealTimer');
+      if (timerEl) timerEl.textContent = dealTimerText();
+    }, 1000);
+    setInterval(() => {
+      if (route.surface !== 'shop' || route.view !== 'home' || ui.modal || ui.palette || ui.cartDrawer) return;
+      if (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      ui.heroSlide = ((ui.heroSlide || 0) + 1) % SHOP_HERO_SLIDES.length;
+      const s = SHOP_HERO_SLIDES[ui.heroSlide];
+      const eyebrow = document.getElementById('nbHeroEyebrow');
+      const title = document.getElementById('nbHeroTitle');
+      const text = document.getElementById('nbHeroText');
+      const img = document.getElementById('nbHeroImg');
+      const tagEl = document.getElementById('nbHeroTag');
+      const cta = document.getElementById('nbHeroCta');
+      if (eyebrow) eyebrow.textContent = s.eyebrow;
+      if (title) title.innerHTML = s.title;
+      if (text) text.textContent = s.text;
+      if (img) img.setAttribute('src', s.img);
+      if (tagEl) tagEl.textContent = s.tag;
+      if (cta) {
+        cta.innerHTML = `${esc(s.cta)} &nbsp;→`;
+        cta.dataset.act = s.act;
+        if (s.cat) cta.dataset.cat = s.cat; else delete cta.dataset.cat;
+      }
+      $$('.nb-dot').forEach((d, idx) => {
+        d.classList.toggle('active', idx === ui.heroSlide);
+        d.setAttribute('aria-selected', String(idx === ui.heroSlide));
+      });
+    }, 5200);
+  }
 })();
