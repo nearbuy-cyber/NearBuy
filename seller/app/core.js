@@ -1,4 +1,5 @@
 // NearBuy Seller Hub — shared client helpers: DOM, API, router, formatting and UI components.
+import { withSession } from '/delivery/session.js';
 // No inline scripts or handlers are used so that the page can run under a strict Content-Security-Policy.
 
 export const state = { me: null, routes: [], shell: null };
@@ -371,7 +372,7 @@ export function tone(status) { for (const [name, list] of Object.entries(TONES))
 export const badge = (label, t = '') => h(`span.badge${t ? `.${t}` : ''}`, label);
 export const statusBadge = (status, label) => badge(label || titleCase(status), tone(status));
 export const demoTag = (show = true) => (show ? h('span.demo-tag', { title: 'This record is sample data created for demonstration' }, 'DEMO DATA') : null);
-export const uploadUrl = (id) => `/api/uploads/${id}`;
+export const uploadUrl = (id) => withSession(`/api/uploads/${id}`);
 export function thumb(imageId, title, cls = '') {
   const el = h(`span.thumb${cls ? `.${cls}` : ''}`);
   if (imageId) el.append(h('img', { src: uploadUrl(imageId), alt: '', loading: 'lazy' })); else el.textContent = initials(title);

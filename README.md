@@ -108,6 +108,44 @@ For Green Basket products, sign in to **Seller → Products & catalogue** and op
 
 ---
 
+## Delivery partner network ("Routely")
+
+Local orders are carried by a delivery network that runs on the same server and database as the Seller Hub, but has its own name, look and sign-ins. Each audience gets a separate app and a separate session cookie; one sign-in never opens another app.
+
+| App | Address | Who uses it | Demo sign-in (only when `SEED_DEMO=1`) |
+| --- | --- | --- | --- |
+| Partner app (mobile-first) | `/runner/` | Delivery partners: apply, go online, accept offers, pick up, deliver, earnings, support | `rohan@nearbuy.demo` / `Runner123!` |
+| Control tower | `/control-tower/` | Operations: live map, dispatch, partner approval, zones and fees, finance, support, reports, audit | `tower@nearbuy.demo` / `Tower123!` |
+| Fleet portal | `/fleet/` | Fleet managers: their own riders, deliveries, performance, settlements | `fleet@nearbuy.demo` / `Fleet123!` |
+| Order tracking | `/track/?t=<private link>` | Customers: status, arrival estimate, delivery code, preferences, rating, problem report | link is created with each order |
+| Seller deliveries | `/seller/deliveries` | Sellers: preparation time, ready for pickup, pickup PIN, handover, issues | `owner@nearbuy.demo` / `Seller123!` |
+
+**Try one delivery end to end**
+
+1. Seller Hub → **Deliveries** → **Create test order**, then **Mark ready for pickup**. Note the pickup PIN.
+2. Partner app → sign in, switch **online**, set a test location, **Accept** the offer, and follow the steps. The customer address appears only after pickup.
+3. Open the tracking link (shown in the control tower on the delivery page) to see the 4-digit delivery code the partner must enter.
+4. Control tower → **Deliveries** shows every status change, offer, proof and payment record.
+
+**What is real and what is not**
+
+- Real: accounts and sessions, partner applications and document review, zones and fee rules, automatic and manual assignment, PIN and code checks, 250 m arrival check, proof records, earnings, cash-on-delivery reconciliation, payout records, tickets, audit log, live updates.
+- Not connected (no provider account): SMS, maps and routing, bank payouts, online payment. One-time codes are shown on screen in test mode; a location is a PIN-code centre; distance is straight-line × 1.35; a payout is a record that operations settle with a bank reference. Local orders are created with the test-order tool because the storefront has no checkout yet, and they are labelled as test data.
+
+**Settings (environment variables)**
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `DELIVERY_ADMIN_EMAIL`, `DELIVERY_ADMIN_PASSWORD`, `DELIVERY_ADMIN_NAME` | none | Creates the first control tower administrator at start-up |
+| `DELIVERY_OFFER_SECONDS` | `45` | Time a partner has to answer an offer |
+| `DELIVERY_TEST_TOOLS` | on, off in production | `0` hides on-screen codes, test locations and test orders |
+| `DELIVERY_BACKGROUND` | on | `0` stops the 2-second dispatch loop (used by tests) |
+| `DELIVERY_SEED_HISTORY` | on | `0` skips the sample deliveries in demo data |
+
+Code: `server/delivery/` (server), `delivery/` (shared look and components), `runner/`, `control-tower/`, `fleet/`, `track/`, `seller/app/pages-deliveries.js`. Tests: `tests/delivery-network.test.cjs`.
+
+---
+
 ## The public site
 
 | Route | Page |
@@ -115,7 +153,7 @@ For Green Basket products, sign in to **Seller → Products & catalogue** and op
 | `/` | Universal homepage — 3D hero, portals, categories, how it works, why NearBuy, portal previews, partners, trust, FAQs, Help & Support enquiry form |
 | `/customer/` · `/customer/login/` | Enters the customer portal (redirects into NearBuy One, Shop workspace) |
 | `/seller/` · `/seller/register/` | Enters the seller portal (Sell workspace) |
-| `/runner/` · `/runner/register/` | Enters the delivery-partner portal (Deliver workspace) |
+| `/runner/` · `/runner/register/` | Delivery partner app (see the delivery partner network section) |
 | `/admin/` | Gated entrance to the internal operations console (noindex, never linked in public navigation) |
 | `/about/` | About NearBuy, the neighbourhood model and the prototype disclaimer |
 | `/help/` | Help centre with quick links, 8 FAQs and support routes |
@@ -130,7 +168,7 @@ Each portal signs in **on its own** and opens **only its own tools**. There is n
 | Customer | `/customer/` | `riya@nearbuy.demo` / `NearBuy123!` |
 | Seller | `/seller/` | `owner@nearbuy.demo` / `Seller123!` |
 | Delivery Partner | `/runner/` | `rohan@nearbuy.demo` / `Runner123!` |
-| Fleet (sub-portal) | `/portal.html#/fleet/overview` | `arjun@nearbuy.demo` / `Fleet123!` |
+| Fleet | `/fleet/` | `fleet@nearbuy.demo` / `Fleet123!` |
 | Operations | `/admin/` or `#/ops/overview` | access code `NB-OPS-2026` |
 
 Sessions live in `sessionStorage` for the current tab and are cleared by *Sign out*, so a demo reviewer can walk all five portals one after another without one session ever unlocking the next. Registration (`/seller/register/`, `/runner/register/`) stays public — you register before you have an account.

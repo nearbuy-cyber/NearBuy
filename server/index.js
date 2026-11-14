@@ -13,6 +13,7 @@ require('./routes/finance');
 require('./routes/growth');
 require('./routes/ops');
 const { seedIfNeeded } = require('./seed');
+const delivery = require('./delivery');
 
 const PORT = Number(process.env.PORT || 4173);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -30,6 +31,10 @@ const MIME = {
 };
 const BLOCKED_TOP = new Set(['server', 'data', 'tests', 'node_modules', 'package.json', 'package-lock.json']);
 const SPA_CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'";
+
+const DELIVERY_APPS = new Set(['runner', 'control-tower', 'fleet', 'track', 'delivery']);
+// Geolocation is allowed for the partner app only through the browser's own permission prompt.
+const DELIVERY_CSP = `${SPA_CSP}; frame-ancestors *`;
 
 function baseHeaders(extra) {
   return { 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', ...extra };
@@ -73,6 +78,28 @@ function sameOrigin(req) {
   return allowed.has(originHost);
 }
 
+/* Session fallback for embedded previews.
+ * Some browsers refuse every cookie for a page shown inside a frame on another site, so sign-in "works" but the next
+ * request is anonymous. Outside production the session token is therefore also returned in a response header; the
+ * page keeps it for the tab and sends it back in a request header (or `_sid` for images and live streams, which cannot
+ * set headers). Production never sends the header unless SESSION_HEADER_FALLBACK=1. */
+const HEADER_SESSIONS = () => (process.env.SESSION_HEADER_FALLBACK ? process.env.SESSION_HEADER_FALLBACK === '1' : process.env.NODE_ENV !== 'production');
+const SESSION_PAIR = /^(nb_[a-z]+_sid)=([A-Za-z0-9_-]{20,200})$/;
+function adoptSessionHeader(req, url) {
+  if (!HEADER_SESSIONS()) return;
+  const sent = String(req.headers['x-nearbuy-session'] || ((req.method === 'GET' && url.searchParams.get('_sid')) || ''));
+  if (!sent) return;
+  const have = String(req.headers.cookie || '');
+  const extra = sent.split(';').map((x) => x.trim()).map((x) => SESSION_PAIR.exec(x)).filter((m) => m && !new RegExp(`(?:^|;\\s*)${m[1]}=[^;]`).test(have)).map((m) => `${m[1]}=${m[2]}`);
+  if (extra.length) req.headers.cookie = [have, ...extra].filter(Boolean).join('; ');
+}
+function cookieHeaders(cookies) {
+  if (!cookies.length) return undefined;
+  const out = { 'Set-Cookie': cookies };
+  if (HEADER_SESSIONS()) out['X-NearBuy-Session'] = cookies.map((c) => c.split(';')[0].trim()).filter((c) => /^nb_[a-z]+_sid=[A-Za-z0-9_-]*$/.test(c)).join('; ');
+  return out;
+}
+
 async function handleApi(req, res, url) {
   const cookies = [];
   const { proto, host } = requestOrigin(req);
@@ -83,7 +110,7 @@ async function handleApi(req, res, url) {
     baseUrl: (process.env.PUBLIC_BASE_URL || `${proto}://${host}`).replace(/\/$/, ''),
     setCookie: (c) => cookies.push(c),
   };
-  const done = (status, payload) => sendJson(res, status, payload, cookies.length ? { 'Set-Cookie': cookies } : undefined);
+  const done = (status, payload) => sendJson(res, status, payload, cookieHeaders(cookies));
   try {
     const found = match(req.method, url.pathname);
     if (!found.route) throw new HttpError(found.pathMatched ? 405 : 404, found.pathMatched ? 'Method not allowed.' : 'API route not found.');
@@ -92,7 +119,7 @@ async function handleApi(req, res, url) {
 
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       // CSRF defence: browsers cannot attach this header cross-site without a CORS preflight, which this server never grants.
-      if (req.headers['x-nearbuy-request'] !== '1' || !sameOrigin(req)) throw new HttpError(403, 'Request blocked: it did not come from the Seller Hub.');
+      if (req.headers['x-nearbuy-request'] !== '1' || !sameOrigin(req)) throw new HttpError(403, 'Request blocked: it did not come from this site.');
       const raw = await readBody(req, r.options.raw ? (r.options.limit || 3 * 1024 * 1024) : 1024 * 1024);
       if (r.options.raw) ctx.raw = raw;
       else if (raw.length) {
@@ -102,7 +129,10 @@ async function handleApi(req, res, url) {
       }
     }
 
-    if (r.options.auth !== 'public' && r.options.auth !== 'ops') {
+    if (r.options.guard) {
+      // Delivery-network portals (partner, fleet, control tower) bring their own session and role checks.
+      await r.options.guard(ctx);
+    } else if (r.options.auth !== 'public' && r.options.auth !== 'ops') {
       const auth = resolveSession(req);
       if (!auth) throw new HttpError(401, 'Please sign in to continue.', { code: 'unauthenticated' });
       ctx.auth = auth;
@@ -123,7 +153,7 @@ async function handleApi(req, res, url) {
       const headers = baseHeaders({ 'Content-Type': result.type, 'Content-Length': Buffer.byteLength(result.body), 'Cache-Control': result.cache || 'no-store' });
       if (result.inline) headers['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
       else headers['Content-Disposition'] = `attachment; filename="${String(result.filename).replace(/[^A-Za-z0-9._-]/g, '_')}"`;
-      if (cookies.length) headers['Set-Cookie'] = cookies;
+      Object.assign(headers, cookieHeaders(cookies) || {});
       res.writeHead(200, headers);
       res.end(result.body);
       return;
@@ -168,25 +198,31 @@ function handleStatic(req, res, url) {
   }
   const file = path.join(ROOT, ...segments);
   if (!file.startsWith(ROOT)) { notFoundPage(res); return; }
+  // Delivery-network apps (partner app, control tower, fleet portal, customer tracking) run under the same strict policy.
+  const csp = DELIVERY_APPS.has(segments[0]) ? { 'Content-Security-Policy': DELIVERY_CSP } : {};
   fs.stat(file, (err, stat) => {
     if (!err && stat.isDirectory()) {
       if (!pathname.endsWith('/')) { res.writeHead(301, { Location: `${pathname}/${url.search}` }); res.end(); return; }
-      sendFile(res, path.join(file, 'index.html'), {}, req.method);
+      sendFile(res, path.join(file, 'index.html'), csp, req.method);
       return;
     }
-    sendFile(res, file, {}, req.method);
+    sendFile(res, file, csp, req.method);
   });
 }
 
 const server = http.createServer((req, res) => {
   let url;
   try { url = new URL(req.url, 'http://localhost'); } catch { res.writeHead(400); res.end(); return; }
-  if (url.pathname.startsWith('/api/')) handleApi(req, res, url);
+  if (url.pathname.startsWith('/api/')) adoptSessionHeader(req, url);
+  if (url.pathname === '/api/realtime') delivery.handleRealtime(req, res, url);
+  else if (url.pathname.startsWith('/api/')) handleApi(req, res, url);
   else handleStatic(req, res, url);
 });
 
 function start(port = PORT) {
   seedIfNeeded();
+  delivery.seedDelivery();
+  delivery.startBackground();
   return new Promise((resolve) => {
     server.listen(port, HOST, () => {
       const actual = server.address().port;
