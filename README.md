@@ -90,7 +90,7 @@ NearBuy One rebuilds them as **one product**:
 | Workspace | Who | What you can do |
 | --- | --- | --- |
 | **Shop** | Neighbour | Discover, filter, save, cart, checkout, track orders, manage account, follow shops |
-| **Sell** | Green Basket Market | Accept orders, mark ready, request runners, edit catalogue & stock, promotions, payouts, insights, settings, team |
+| **Sell** | Green Basket Market | Accept orders, mark ready, request runners, edit catalogue & stock, promotions, payouts, insights, settings, team — plus the **Why Sell on NearBuy?** benefits band |
 | **Deliver** | Runner | Go online, accept/pass requests, shop arrival, pickup OTP, route, delivery OTP, earnings, preferences, safety reports |
 | **Fleet** | Neighbourhood fleet lead | Team availability, work allocation, auto-match, reports, safety commitments |
 | **Ops** | South Delhi ops desk | Control tower, dispatch queue, **verification queue**, **homepage enquiry queue**, partner eligibility, service areas, pricing bands, incidents, audit log |
@@ -112,6 +112,26 @@ Nothing carries a session across those steps: each one is a fresh sign-in for th
 No workspace is a public portal. Any gated route withholds its module list, its counts, its data and its breadcrumb label until the matching sign-in happens; another portal's session opens nothing. `/admin/` is a noindex signpost to the operations gate, deliberately absent from the homepage, footer and portal cards, and operations still needs `NB-OPS-2026` on top of a session.
 
 This is a browser-only demonstration of the model, not a security boundary: the checks run in the client, so production still needs server-side sessions, per-role permission checks on every sensitive action, and MFA for administrative roles.
+
+## Selling on NearBuy — the benefits band
+
+The seller landing page (`#/sell/overview`) carries a **Why Sell on NearBuy?** section directly under the KPI hero: eight benefit cards, each with a real destination, a status label and a closing CTA that opens the seller registration flow.
+
+Two rules are enforced in the copy, not just in review:
+
+- **No promises.** The band states plainly that there are no guaranteed sales, orders, commission or delivery, that delivery depends on an eligible partner being available, and that fees and settlement timing live in *Payments & earnings*.
+- **No dead claims.** Every card is labelled either **In demo** (it works in this prototype) or **Partly** (some of it is still planned — advertising products, a real human support desk, photo upload). Nothing is marked live that a reviewer cannot click.
+
+The section is NearBuy's own; it borrows the *structure* of marketplace seller pages, never their claims, and the Flipkart name appears nowhere in the product.
+
+### Monthly feature review
+
+Keep the band honest by reviewing it once a month against what actually ships:
+
+1. Re-read the eight cards against the build; flip **Partly → In demo** only when the feature is genuinely clickable, and delete a card rather than overstate it.
+2. Compare the offer with nearby marketplaces (fees, payout timing, ad formats, support hours, catalogue limits) and record the differences — without importing their guarantees.
+3. Update *Payments & earnings* if commission or settlement timing changes, since the band points there for money questions.
+4. Check the honesty line still matches reality before publishing any new claim.
 
 ## Keyboard & shortcuts
 

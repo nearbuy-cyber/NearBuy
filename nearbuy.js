@@ -502,7 +502,7 @@ function readRoute() {
 }
 function go(surface, view = 'home', id = null) {
   const target = SURFACES[surface] || SURFACES.shop;
-  const valid = target.nav.some((n) => n.view === view) || ['shop', 'product', 'order', 'checkout'].includes(view);
+  const valid = target.nav.some((n) => n.view === view) || ['shop', 'product', 'order', 'checkout', 'register'].includes(view);
   if (!valid) view = (target.nav.find((n) => n.view) || { view: 'home' }).view;
   const next = `#/${surface}/${view}${id ? `/${encodeURIComponent(id)}` : ''}`;
   if (location.hash === next) { paint(); } else { location.hash = next; }
@@ -1285,6 +1285,8 @@ function sellOverview() {
       ${kpi({ label: 'Next payout', value: money(4820), icon: 'wallet', delta: 'Fri', dir: 'flat', foot: 'settlement due' })}
     </div>
 
+    ${whySellSection()}
+
     <div class="grid grid--main mb-18">
       <section class="card card--flush">
         <div class="card__head"><div><h2>Orders that need you</h2><p>Accept, prepare and hand over — each step stays in sync with the customer.</p></div><button class="link" data-act="nav" data-surface="sell" data-view="orders">All orders ${icon('arrowRight')}</button></div>
@@ -1331,6 +1333,48 @@ function sellOverview() {
     </section>
   </div>`;
 }
+/* ---- "Why Sell on NearBuy?" — benefits band on the Seller Hub landing ---- */
+const WHY_SELL = [
+  { icon: 'pin', title: 'Reach nearby customers', copy: 'Your shop appears to neighbours inside your serviceable radius — the street, not the whole city.', state: 'In demo', view: 'settings', link: 'Set your radius' },
+  { icon: 'store', title: 'Your digital shop', copy: 'A storefront for your physical shop: timings, fulfilment modes, ratings and shop details.', state: 'In demo', view: 'settings', link: 'Open shop settings' },
+  { icon: 'package', title: 'Easy catalogue management', copy: 'Add products with price, MRP, stock and category. Photo upload is a labelled placeholder here.', state: 'In demo', view: 'catalogue', link: 'Manage catalogue' },
+  { icon: 'clipboard', title: 'Manage orders easily', copy: 'View, accept, prepare and track every order — pickup or runner delivery — from one queue.', state: 'In demo', view: 'orders', link: 'Open orders' },
+  { icon: 'truck', title: 'Delivery support', copy: 'Request a nearby NearBuy Runner for eligible short-distance deliveries, when a partner is available.', state: 'In demo', view: 'delivery', link: 'Delivery & pickup' },
+  { icon: 'megaphone', title: 'Promote your shop', copy: 'Run a storefront coupon and see clearly which placements are paid. Advertising products are not built yet.', state: 'Partly', view: 'promotions', link: 'Open promotions' },
+  { icon: 'chart', title: 'Business insights', copy: 'Watch orders, sales, product performance and restock alerts — sample figures in this prototype.', state: 'In demo', view: 'insights', link: 'View insights' },
+  { icon: 'help', title: 'Seller support', copy: 'Guided onboarding, an academy and a help centre. A real human support desk is not connected yet.', state: 'Partly', view: 'support', link: 'Visit the academy' }
+];
+
+function whySellSection() {
+  return `<section class="why-sell" aria-labelledby="whySellTitle">
+    <div class="why-sell__head">
+      <div class="why-sell__copy">
+        <span class="kicker kicker--sell"><i></i>WHY SELL ON NEARBUY?</span>
+        <h2 id="whySellTitle">Grow your local business. Reach more customers. Sell smarter with NearBuy.</h2>
+        <p>Your shop deserves to be discovered. Join the local commerce network that brings neighbourhood shops and nearby customers together.</p>
+      </div>
+      <div class="why-sell__actions">
+        <button class="btn btn--primary btn--sm" data-act="nav" data-surface="sell" data-view="register">${icon('store')} Start selling on NearBuy</button>
+        <span class="tiny muted">Already a seller? You are signed in as Green Basket Market.</span>
+      </div>
+    </div>
+    <div class="why-grid">
+      ${WHY_SELL.map((b) => `<article class="why-card">
+        <span class="why-card__icon">${icon(b.icon)}</span>
+        <div class="why-card__body">
+          <div class="why-card__title"><b>${b.title}</b>${pill(b.state, b.state === 'In demo' ? 'green' : 'neutral')}</div>
+          <small>${b.copy}</small>
+          <button class="link why-card__link" data-act="nav" data-surface="sell" data-view="${b.view}">${b.link} ${icon('arrowRight')}</button>
+        </div>
+      </article>`).join('')}
+    </div>
+    <div class="why-sell__foot">
+      ${icon('shield')}
+      <p><b>No guaranteed sales, orders, commission or delivery.</b> NearBuy does not promise a volume of orders or earnings, and delivery depends on an eligible partner being available. <span class="why-legend"><i class="why-dot why-dot--green"></i> In demo — working in this prototype</span> <span class="why-legend"><i class="why-dot"></i> Partly — some of it is still planned</span> Fees and settlement timing live in <button class="link" data-act="nav" data-surface="sell" data-view="payments">Payments &amp; earnings</button>.</p>
+    </div>
+  </section>`;
+}
+
 function sellOrders() {
   const filter = sellerOrderFilter();
   const all = sellerOrders();
